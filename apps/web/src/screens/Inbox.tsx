@@ -29,7 +29,9 @@ export function Inbox() {
   const navigate = useNavigate();
   const { syncing, completedAt } = useSync();
   const [tab, setTab] = useState<Tab>("customer");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("needs");
+  // Phase 0 default is "All": there's no triage/drafting yet, so "Needs Review"
+  // is always empty. Once Phase 3 assigns needs_review, switch the default back.
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [threads, setThreads] = useState<ThreadSummaryDTO[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
