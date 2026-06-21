@@ -36,6 +36,24 @@ async function main() {
 
   app.appCtx = createContext(env);
 
+  // Tolerate empty bodies on JSON requests (e.g. bodyless POST /sync, /logout)
+  // instead of returning 400 FST_ERR_CTP_EMPTY_JSON_BODY.
+  app.addContentTypeParser(
+    "application/json",
+    { parseAs: "string" },
+    (_req, body, done) => {
+      if (body === "" || body == null) {
+        done(null, undefined);
+        return;
+      }
+      try {
+        done(null, JSON.parse(body as string));
+      } catch (err) {
+        done(err as Error, undefined);
+      }
+    },
+  );
+
   // CORS for the web origin; harmless in the combined deployment (same origin),
   // and required when the web runs on a separate origin in local dev.
   await app.register(cors, {

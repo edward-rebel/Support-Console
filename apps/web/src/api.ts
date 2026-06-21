@@ -21,13 +21,16 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // Only declare a JSON content-type when we actually send a body — otherwise
+  // Fastify's JSON parser rejects the empty body (e.g. POST /sync, /logout).
+  const headers: Record<string, string> = { ...(init?.headers as Record<string, string>) };
+  if (init?.body != null) {
+    headers["Content-Type"] = "application/json";
+  }
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
   if (!res.ok) {
     let message = res.statusText;
