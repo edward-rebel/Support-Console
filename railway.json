@@ -5,8 +5,8 @@
     "buildCommand": "pnpm --filter @ms/web build"
   },
   "deploy": {
-    "startCommand": "pnpm --filter @ms/web start",
+    "startCommand": "pnpm db:migrate && pnpm db:seed && pnpm --filter @ms/api start",
     "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 3
+    "restartPolicyMaxRetries": 5
   }
 }

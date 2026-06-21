@@ -27,8 +27,10 @@ export function loadEnv(): WorkerEnv {
     intervalMinutes: Number(opt("SYNC_INTERVAL_MINUTES", "5")),
     integrations: {
       google: {
-        clientId: req("GOOGLE_CLIENT_ID"),
-        clientSecret: req("GOOGLE_CLIENT_SECRET"),
+        // Optional so the worker boots before Gmail is connected; runSync then
+        // reports "not connected" and retries next interval rather than crashing.
+        clientId: opt("GOOGLE_CLIENT_ID", ""),
+        clientSecret: opt("GOOGLE_CLIENT_SECRET", ""),
         redirectUri: opt(
           "GOOGLE_REDIRECT_URI",
           `${appBaseUrl}/auth/google/callback`,

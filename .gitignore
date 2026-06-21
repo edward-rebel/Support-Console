@@ -10,3 +10,6 @@ coverage/
 .vite/
 .turbo/
 *.tsbuildinfo
+
+# Railway IaC local agent tooling (not needed in repo)
+.agents/

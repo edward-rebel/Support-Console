@@ -21,6 +21,8 @@ export interface ApiEnv {
   webBaseUrl: string;
   appBaseUrl: string;
   port: number;
+  // Minutes between in-process ingestion runs (combined-service deployment).
+  syncIntervalMinutes: number;
   integrations: IntegrationsConfig;
 }
 
@@ -32,6 +34,7 @@ export function loadEnv(): ApiEnv {
     webBaseUrl: opt("WEB_BASE_URL", "http://localhost:5173"),
     appBaseUrl,
     port: Number(opt("PORT", "4000")),
+    syncIntervalMinutes: Number(opt("SYNC_INTERVAL_MINUTES", "5")),
     integrations: {
       google: {
         // Optional at boot so the operator can log in and view the (empty)

@@ -6,7 +6,9 @@ import type {
   ThreadSummaryDTO,
 } from "@ms/shared";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+// Empty default = same-origin (combined-service deployment). Local dev sets
+// VITE_API_URL to the standalone API origin via apps/web/.env.development.
+const API_URL = import.meta.env.VITE_API_URL ?? "";
 
 export class ApiError extends Error {
   constructor(

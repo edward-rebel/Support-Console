@@ -1,20 +1,23 @@
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import session from "@fastify/session";
 import cors from "@fastify/cors";
+import fastifyStatic from "@fastify/static";
 import { loadEnv } from "./env";
 import { createContext } from "./context";
 import { registerAuthRoutes } from "./auth";
 import { registerThreadRoutes } from "./routes/threads";
 import { registerOAuthRoutes } from "./routes/oauth";
 import { registerSyncRoutes } from "./routes/sync";
+import { SyncRunner } from "./sync-runner";
 
 async function main() {
   const env = loadEnv();
 
   // Treat Railway (or explicit NODE_ENV=production) as production: behind a TLS
-  // proxy, requiring secure + cross-site cookies so the web and api subdomains
-  // can share the session.
+  // proxy, with secure cookies and the in-process ingestion scheduler enabled.
   const isProd =
     process.env.NODE_ENV === "production" ||
     Boolean(process.env.RAILWAY_ENVIRONMENT);
@@ -24,7 +27,6 @@ async function main() {
     trustProxy: true,
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
-      // pino-pretty is a dev-only dependency; only load it when asked.
       transport:
         process.env.LOG_PRETTY === "1"
           ? { target: "pino-pretty", options: { translateTime: "HH:MM:ss" } }
@@ -34,7 +36,8 @@ async function main() {
 
   app.appCtx = createContext(env);
 
-  // CORS for the web origin; credentials enabled for the session cookie.
+  // CORS for the web origin; harmless in the combined deployment (same origin),
+  // and required when the web runs on a separate origin in local dev.
   await app.register(cors, {
     origin: env.webBaseUrl,
     credentials: true,
@@ -46,9 +49,7 @@ async function main() {
     cookieName: "ms_session",
     cookie: {
       httpOnly: true,
-      // Cross-site (web subdomain → api subdomain) requires SameSite=None +
-      // Secure in production; lax is fine for same-origin localhost dev.
-      sameSite: isProd ? "none" : "lax",
+      sameSite: "lax", // combined service is same-origin, so lax is sufficient
       secure: isProd,
       maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
     },
@@ -60,7 +61,26 @@ async function main() {
   registerAuthRoutes(app);
   registerThreadRoutes(app);
   registerOAuthRoutes(app);
-  registerSyncRoutes(app);
+
+  // Shared ingestion runner — used by the manual /sync route and the scheduler.
+  const runner = new SyncRunner(app.appCtx.db, env.integrations);
+  registerSyncRoutes(app, runner);
+
+  // Serve the built web SPA when present (combined-service deployment). The API
+  // routes above take precedence; any other GET falls back to index.html.
+  const webDist = fileURLToPath(new URL("../../web/dist", import.meta.url));
+  if (existsSync(webDist)) {
+    await app.register(fastifyStatic, { root: webDist });
+    app.setNotFoundHandler((request, reply) => {
+      if (request.method === "GET" && !request.url.startsWith("/api")) {
+        return reply.sendFile("index.html");
+      }
+      return reply.code(404).send({ error: "Not found" });
+    });
+    app.log.info(`Serving web UI from ${webDist}`);
+  } else {
+    app.log.info("No web build found; running API only (web served separately)");
+  }
 
   const close = async () => {
     app.log.info("Shutting down…");
@@ -72,6 +92,23 @@ async function main() {
   process.on("SIGTERM", close);
 
   await app.listen({ port: env.port, host: "0.0.0.0" });
+
+  // In-process ingestion scheduler (combined-service deployment). Idempotent and
+  // never sends email. Disabled outside production so local dev controls sync
+  // manually (or via the standalone worker).
+  if (isProd) {
+    const intervalMs = Math.max(1, env.syncIntervalMinutes) * 60 * 1000;
+    const kick = () =>
+      runner.start((msg, err) => {
+        if (err) app.log.error({ err }, msg);
+        else app.log.info(msg);
+      });
+    kick();
+    setInterval(kick, intervalMs);
+    app.log.info(
+      `Ingestion scheduler enabled: every ${env.syncIntervalMinutes} min`,
+    );
+  }
 }
 
 main().catch((err) => {

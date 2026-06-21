@@ -115,45 +115,35 @@ pnpm --filter @ms/worker sync:once   # run one ingestion pass and exit
 
 ## Deploying to Railway
 
-This repo ships **config-as-code** for each service: `apps/api/railway.json`, `apps/web/railway.json`, `apps/worker/railway.json`. Each builds from the **repo root** (so the pnpm workspace resolves) and only differs in its build/start command. The api's start command runs `db:migrate` + `db:seed` automatically on every deploy (both idempotent), so there is no manual migration step.
+Phase 0 deploys as a **single combined service** on Railway: the root `railway.json` builds the web UI and the API serves it (same origin) while running ingestion on an interval. This is the fastest path and keeps auth simple; the app is structured so it can later be split into the spec's separate `api` / `web` / `worker` services (each app still has its own start scripts).
 
-Create one Railway project with **four** components, all from this GitHub repo:
+**How the combined service is configured** (root `railway.json`):
+- Build: `pnpm --filter @ms/web build` → produces `apps/web/dist`.
+- Start: `pnpm db:migrate && pnpm db:seed && pnpm --filter @ms/api start` (migrate + seed are idempotent, so they run safely on every deploy).
+- The API serves `apps/web/dist` for all non-API GET routes, and runs the ingestion scheduler when `NODE_ENV=production` / `RAILWAY_ENVIRONMENT` is set.
 
-1. **Postgres** — add the Postgres plugin (you've done this). It exposes `DATABASE_URL` via a reference variable.
-2. **api**, **web**, **worker** — three services, each pointing at this same repo on `main`. For each, in **Settings → Build → Config-as-code / Railway Config File**, set the path:
-   - api → `apps/api/railway.json`
-   - web → `apps/web/railway.json`
-   - worker → `apps/worker/railway.json`
-   - Leave **Root Directory** empty (repo root) for all three.
+**Database:** the project uses the **pgvector** service (image `pgvector/pgvector:pg18`, extension enabled) — not the stock `Postgres` plugin. The app's `DATABASE_URL` references it over the private network: `${{ pgvector.DATABASE_URL_PRIVATE }}`.
 
-### Service variables
+**Service variables** (set on the app service via `railway variable set … --service Support-Console`):
 
-**api:**
 | Var | Value |
 |---|---|
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (reference) |
+| `DATABASE_URL` | `${{ pgvector.DATABASE_URL_PRIVATE }}` |
+| `PORT` | `8080` (matches the generated domain's target port) |
+| `NODE_ENV` | `production` |
 | `SESSION_SECRET`, `ENCRYPTION_KEY` | `openssl rand -hex 32` each |
-| `OPERATOR_EMAIL`, `OPERATOR_PASSWORD` | your login |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | from Google Cloud |
-| `GOOGLE_REDIRECT_URI` | `https://<api-public-domain>/auth/google/callback` |
-| `APP_BASE_URL` | `https://<api-public-domain>` |
-| `WEB_BASE_URL` | `https://<web-public-domain>` |
+| `OPERATOR_EMAIL`, `OPERATOR_PASSWORD` | console login |
+| `APP_BASE_URL`, `WEB_BASE_URL` | the service's public URL (same value) |
+| `GOOGLE_REDIRECT_URI` | `<public-url>/auth/google/callback` |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | from Google Cloud (added when Gmail OAuth is set up) |
 | `GMAIL_ACCOUNT` | `contact@mollyandstitch.us` |
+| `BACKFILL_MONTHS`, `SYNC_INTERVAL_MINUTES` | `6`, `5` |
 
-**web:**
-| Var | Value |
-|---|---|
-| `VITE_API_URL` | `https://<api-public-domain>` (read at **build** time) |
-
-**worker:** `DATABASE_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ENCRYPTION_KEY`, `GMAIL_ACCOUNT`, `BACKFILL_MONTHS`, `SYNC_INTERVAL_MINUTES`.
-
-Railway auto-sets `RAILWAY_ENVIRONMENT`, which the api detects to enable secure, cross-site (`SameSite=None`) session cookies so the web and api subdomains share a session. After the api gets a public domain, add `https://<api-public-domain>/auth/google/callback` to the Google OAuth client's authorized redirect URIs.
-
-The worker runs an internal interval loop by default. To run it as a scheduled **Railway Cron** instead, set its start command to `pnpm --filter @ms/worker sync:once` and add a cron schedule.
+`VITE_API_URL` is left **unset** in production so the web build uses same-origin relative URLs. Local dev sets it to `http://localhost:4000` via `apps/web/.env.development`.
 
 ### pgvector
 
-Not required for Phase 0 (no vector columns yet), but you've enabled it. Verify with `pnpm db:enable-vector` pointed at the Railway `DATABASE_URL`, or in Railway's Postgres **Data** tab run:
+Enabled (v0.8.3) on the `pgvector` database. Verify any time with:
 
 ```sql
 SELECT extname, extversion FROM pg_extension WHERE extname = 'vector';
