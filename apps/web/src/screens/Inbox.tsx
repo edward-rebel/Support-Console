@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import type { ThreadSummaryDTO } from "@ms/shared";
 import { api } from "../api";
 import { useSync } from "../sync";
+import { useIsMobile } from "../useIsMobile";
 import { CheckCircleIcon, ChevronDownIcon, FilterIcon } from "../icons";
 import {
   avatarTokens,
@@ -28,6 +29,7 @@ const STATUS_QUERY: Record<StatusFilter, string | undefined> = {
 export function Inbox() {
   const navigate = useNavigate();
   const { syncing, completedAt } = useSync();
+  const isMobile = useIsMobile();
   const [tab, setTab] = useState<Tab>("customer");
   // Phase 0 default is "All": there's no triage/drafting yet, so "Needs Review"
   // is always empty. Once Phase 3 assigns needs_review, switch the default back.
@@ -76,7 +78,7 @@ export function Inbox() {
       }}
     >
       {/* toolbar */}
-      <div style={{ flex: "none", padding: "20px 28px 0" }}>
+      <div style={{ flex: "none", padding: isMobile ? "16px 14px 0" : "20px 28px 0" }}>
         <div
           style={{
             display: "flex",
@@ -131,7 +133,15 @@ export function Inbox() {
         </div>
 
         {/* segmented control */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: isMobile ? 8 : 14,
+            flexWrap: "wrap",
+            rowGap: 10,
+          }}
+        >
           <div
             style={{
               display: "inline-flex",
@@ -210,7 +220,7 @@ export function Inbox() {
           flex: 1,
           minHeight: 0,
           overflow: "auto",
-          padding: "16px 28px 28px",
+          padding: isMobile ? "12px 14px 24px" : "16px 28px 28px",
         }}
       >
         {tab === "noise" ? (
@@ -231,6 +241,7 @@ export function Inbox() {
               <ThreadRow
                 key={row.id}
                 row={row}
+                isMobile={isMobile}
                 onOpen={() => navigate(`/review/${row.id}`)}
               />
             ))}
@@ -337,15 +348,172 @@ function Chip({
 
 function ThreadRow({
   row,
+  isMobile,
   onOpen,
 }: {
   row: ThreadSummaryDTO;
+  isMobile: boolean;
   onOpen: () => void;
 }) {
   const cat = categoryTokens(row.category?.slug);
   const av = avatarTokens(row.customerEmail ?? row.id);
   const st = statusTokens(row.status);
   const [hover, setHover] = useState(false);
+
+  if (isMobile) {
+    return (
+      <div
+        onClick={onOpen}
+        style={{
+          cursor: "pointer",
+          display: "flex",
+          gap: 12,
+          padding: "13px 14px",
+          borderBottom: "1px solid var(--border-2)",
+          alignItems: "flex-start",
+        }}
+      >
+        <div style={{ position: "relative", flex: "none" }}>
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              background: av.bg,
+              color: av.fg,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 600,
+              fontSize: 14,
+            }}
+          >
+            {initialsFrom(row.customerName, row.customerEmail)}
+          </div>
+          {row.unread && (
+            <span
+              style={{
+                position: "absolute",
+                top: -1,
+                right: -1,
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                background: "var(--accent)",
+                border: "2px solid var(--surface)",
+              }}
+            />
+          )}
+        </div>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+            <span
+              style={{
+                flex: 1,
+                minWidth: 0,
+                fontSize: 14.5,
+                fontWeight: row.unread ? 700 : 600,
+                color: "var(--text)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {row.customerName ?? row.customerEmail ?? "Unknown"}
+            </span>
+            <span style={{ flex: "none", fontSize: 12, color: "var(--text-3)" }}>
+              {shortTime(row.lastMessageAt)}
+            </span>
+          </div>
+          <div
+            style={{
+              fontSize: 13.5,
+              fontWeight: row.unread ? 700 : 600,
+              color: "var(--text)",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {row.subject ?? "(no subject)"}
+          </div>
+          {row.snippet && (
+            <div
+              style={{
+                fontSize: 13,
+                color: "var(--text-3)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {row.snippet}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 2 }}>
+            {row.category && (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: "2px 9px",
+                  borderRadius: 999,
+                  background: cat.bg,
+                  color: cat.fg,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {row.category.name}
+              </span>
+            )}
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                padding: "2px 9px",
+                borderRadius: 999,
+                background: st.bg,
+                color: st.fg,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {statusPulses(row.status) && (
+                <span
+                  style={{
+                    width: 5,
+                    height: 5,
+                    borderRadius: "50%",
+                    background: "currentColor",
+                    animation: "pulse 1.3s ease-in-out infinite",
+                  }}
+                />
+              )}
+              {statusLabel(row.status)}
+            </span>
+            {row.confidence && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: confColor(row.confidence),
+                  }}
+                />
+                <span style={{ fontSize: 12, fontWeight: 600, color: confColor(row.confidence) }}>
+                  {confLabel(row.confidence)}
+                </span>
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       onClick={onOpen}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { MessageDTO, ThreadDetailDTO } from "@ms/shared";
 import { api } from "../api";
+import { useIsMobile } from "../useIsMobile";
 import { ChevronLeftIcon, BagIcon } from "../icons";
 import {
   avatarTokens,
@@ -9,16 +10,37 @@ import {
   initialsFrom,
 } from "../tokens";
 
-// Splits a plain-text body into paragraphs, falling back to a single block.
+function splitParagraphs(raw: string): string[] {
+  return raw
+    .split(/\n{2,}/)
+    .map((p) => p.replace(/\s*\n\s*/g, " ").trim())
+    .filter(Boolean);
+}
+
+// Safely turn an HTML email body into readable text. DOMParser does NOT execute
+// scripts, and we only read textContent, so no markup is rendered.
+function htmlToText(html: string): string {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc.querySelectorAll("style, script, head").forEach((el) => el.remove());
+  // Give block elements line breaks so paragraphs survive.
+  doc.querySelectorAll("p, br, div, tr, li, h1, h2, h3").forEach((el) => {
+    el.append("\n");
+  });
+  return (doc.body.textContent ?? "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+// Message body as paragraphs: prefer plain text, fall back to extracted HTML.
 function paragraphs(msg: MessageDTO): string[] {
   const text = msg.bodyText?.trim();
-  if (text) {
-    return text
-      .split(/\n{2,}/)
-      .map((p) => p.replace(/\s*\n\s*/g, " ").trim())
-      .filter(Boolean);
+  if (text) return splitParagraphs(text);
+  if (msg.bodyHtml) {
+    const extracted = htmlToText(msg.bodyHtml);
+    if (extracted) return splitParagraphs(extracted);
   }
-  return ["(No plain-text body — this message is HTML-only.)"];
+  return ["(This message has no readable text content.)"];
 }
 
 function formatTime(iso: string | null): string {
@@ -34,6 +56,7 @@ function formatTime(iso: string | null): string {
 export function Review() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [thread, setThread] = useState<ThreadDetailDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,8 +117,8 @@ export function Review() {
           height: 60,
           display: "flex",
           alignItems: "center",
-          gap: 13,
-          padding: "0 22px",
+          gap: isMobile ? 10 : 13,
+          padding: isMobile ? "0 14px" : "0 22px",
           borderBottom: "1px solid var(--border)",
           background: "var(--surface)",
         }}
@@ -140,7 +163,8 @@ export function Review() {
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
-            maxWidth: 520,
+            maxWidth: isMobile ? 200 : 520,
+            flex: isMobile ? 1 : undefined,
           }}
         >
           {thread.subject ?? "(no subject)"}
@@ -151,11 +175,14 @@ export function Review() {
             display: "flex",
             alignItems: "center",
             gap: 9,
+            flex: "none",
           }}
         >
-          <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>
-            Draft confidence
-          </span>
+          {!isMobile && (
+            <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>
+              Draft confidence
+            </span>
+          )}
           {[0, 1, 2].map((i) => (
             <i
               key={i}
@@ -174,19 +201,35 @@ export function Review() {
         </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          overflow: isMobile ? "auto" : "hidden",
+        }}
+      >
         {/* left: thread + composer */}
         <div
           style={{
-            flex: 1.62,
+            flex: isMobile ? "none" : 1.62,
             minWidth: 0,
+            width: isMobile ? "100%" : undefined,
             display: "flex",
             flexDirection: "column",
-            borderRight: "1px solid var(--border)",
+            borderRight: isMobile ? "none" : "1px solid var(--border)",
             background: "var(--surface)",
           }}
         >
-          <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: "24px 30px" }}>
+          <div
+            style={{
+              flex: isMobile ? "none" : 1,
+              minHeight: 0,
+              overflow: isMobile ? "visible" : "auto",
+              padding: isMobile ? "18px 16px" : "24px 30px",
+            }}
+          >
             {earlierCount > 0 && (
               <div style={{ textAlign: "center", marginBottom: 20 }}>
                 <span
@@ -228,31 +271,47 @@ export function Review() {
                       display: "flex",
                       alignItems: "baseline",
                       gap: 9,
-                      marginBottom: 4,
+                      marginBottom: isMobile ? 1 : 4,
+                      flexWrap: isMobile ? "wrap" : "nowrap",
                     }}
                   >
                     <span
-                      style={{ fontWeight: 600, fontSize: 15, color: "var(--text)" }}
+                      style={{
+                        fontWeight: 600,
+                        fontSize: 15,
+                        color: "var(--text)",
+                        flex: isMobile ? 1 : "none",
+                        minWidth: 0,
+                      }}
                     >
                       {thread.customerName ?? thread.customerEmail ?? "Customer"}
+                    </span>
+                    <span
+                      style={{
+                        marginLeft: isMobile ? 0 : "auto",
+                        order: isMobile ? 1 : 0,
+                        fontSize: 12.5,
+                        color: "var(--text-3)",
+                        whiteSpace: "nowrap",
+                        flex: "none",
+                      }}
+                    >
+                      {formatTime(latest.gmailInternalDate)}
                     </span>
                     <span
                       style={{
                         fontSize: 12,
                         color: "var(--text-3)",
                         fontFamily: "var(--mono)",
+                        order: isMobile ? 2 : 0,
+                        flexBasis: isMobile ? "100%" : "auto",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        minWidth: 0,
                       }}
                     >
                       {thread.customerEmail ?? ""}
-                    </span>
-                    <span
-                      style={{
-                        marginLeft: "auto",
-                        fontSize: 12.5,
-                        color: "var(--text-3)",
-                      }}
-                    >
-                      {formatTime(latest.gmailInternalDate)}
                     </span>
                   </div>
                   <div style={{ fontSize: 15.5, lineHeight: 1.68, color: "var(--text)" }}>
@@ -273,7 +332,7 @@ export function Review() {
               flex: "none",
               borderTop: "1px solid var(--border)",
               background: "var(--surface-3)",
-              padding: "16px 30px 18px",
+              padding: isMobile ? "14px 16px 16px" : "16px 30px 18px",
             }}
           >
             <div
@@ -373,10 +432,11 @@ export function Review() {
         <div
           style={{
             flex: "none",
-            width: 392,
-            overflow: "auto",
-            padding: "24px 22px",
+            width: isMobile ? "100%" : 392,
+            overflow: isMobile ? "visible" : "auto",
+            padding: isMobile ? "18px 16px 24px" : "24px 22px",
             background: "var(--surface-2)",
+            borderTop: isMobile ? "1px solid var(--border)" : "none",
           }}
         >
           <div

@@ -1,8 +1,9 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useTheme } from "../theme";
 import { useAuth } from "../auth";
 import { useSync } from "../sync";
+import { useIsMobile } from "../useIsMobile";
 import {
   BarChartIcon,
   BookIcon,
@@ -37,6 +38,8 @@ export function Shell({
   const { user } = useAuth();
   const { syncing, triggerSync } = useSync();
   const location = useLocation();
+  const isMobile = useIsMobile();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const navItems: NavItem[] = [
     { to: "/inbox", label: "Inbox", icon: <InboxIcon size={18} />, count: needsReviewCount },
@@ -51,10 +54,187 @@ export function Shell({
     { to: "/settings", label: "Settings", icon: <SettingsIcon size={18} /> },
   ];
 
-  // Inbox is "active" on the review screen too.
   const isActive = (to: string) =>
     location.pathname.startsWith(to) ||
     (to === "/inbox" && location.pathname.startsWith("/review"));
+
+  // Sidebar inner content — reused by the desktop aside and the mobile drawer.
+  const sidebarContent = (
+    <>
+      <div
+        style={{
+          height: 60,
+          display: "flex",
+          alignItems: "center",
+          gap: 11,
+          padding: "0 18px",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <div
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 8,
+            background: "var(--accent)",
+            color: "var(--accent-fg)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: 700,
+            fontSize: 14,
+          }}
+        >
+          M
+        </div>
+        <div style={{ lineHeight: 1.1 }}>
+          <div
+            style={{
+              fontSize: 14.5,
+              fontWeight: 700,
+              color: "var(--text)",
+              letterSpacing: "-0.01em",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Molly &amp; Stitch
+          </div>
+          <div style={{ fontSize: 11.5, color: "var(--text-3)", fontWeight: 500 }}>
+            Support Console
+          </div>
+        </div>
+      </div>
+
+      <nav
+        style={{
+          flex: 1,
+          padding: "14px 12px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 3,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.07em",
+            textTransform: "uppercase",
+            color: "var(--text-3)",
+            padding: "6px 10px 7px",
+          }}
+        >
+          Workspace
+        </div>
+        {navItems.map((item) => {
+          const active = isActive(item.to);
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={() => setDrawerOpen(false)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 11,
+                padding: "9px 11px",
+                borderRadius: 9,
+                fontSize: 14,
+                fontWeight: 500,
+                background: active ? "var(--surface)" : "transparent",
+                color: active ? "var(--text)" : "var(--text-2)",
+              }}
+            >
+              <span
+                style={{
+                  flex: "none",
+                  width: 18,
+                  height: 18,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {item.icon}
+              </span>
+              <span style={{ flex: 1 }}>{item.label}</span>
+              {item.count ? (
+                <span
+                  style={{
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    fontFamily: "var(--mono)",
+                    padding: "1px 7px",
+                    borderRadius: 999,
+                    background: active
+                      ? "var(--accent-soft-bg)"
+                      : "var(--surface)",
+                    color: active ? "var(--accent-soft-fg)" : "var(--text-3)",
+                  }}
+                >
+                  {item.count}
+                </span>
+              ) : null}
+            </NavLink>
+          );
+        })}
+      </nav>
+
+      <div style={{ padding: 12, borderTop: "1px solid var(--border)" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "8px 10px",
+            borderRadius: 10,
+            background: "var(--surface)",
+          }}
+        >
+          <div
+            style={{
+              flex: "none",
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
+              background: "var(--cat-sizing-bg)",
+              color: "var(--cat-sizing-fg)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 600,
+              fontSize: 12,
+            }}
+          >
+            {(user?.email ?? "?").slice(0, 2).toUpperCase()}
+          </div>
+          <div style={{ flex: 1, minWidth: 0, lineHeight: 1.2 }}>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: "var(--text)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {user?.email ?? "Operator"}
+            </div>
+            <div style={{ fontSize: 11.5, color: "var(--text-3)" }}>Owner</div>
+          </div>
+          <span
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              background: "var(--conf-high)",
+            }}
+          />
+        </div>
+      </div>
+    </>
+  );
 
   return (
     <div
@@ -68,189 +248,55 @@ export function Shell({
         overflow: "hidden",
       }}
     >
-      {/* SIDEBAR */}
-      <aside
-        style={{
-          flex: "none",
-          width: 248,
-          background: "var(--surface-2)",
-          borderRight: "1px solid var(--border)",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <div
+      {/* Desktop sidebar (static) */}
+      {!isMobile && (
+        <aside
           style={{
-            height: 60,
-            display: "flex",
-            alignItems: "center",
-            gap: 11,
-            padding: "0 18px",
-            borderBottom: "1px solid var(--border)",
-          }}
-        >
-          <div
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 8,
-              background: "var(--accent)",
-              color: "var(--accent-fg)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 700,
-              fontSize: 14,
-            }}
-          >
-            M
-          </div>
-          <div style={{ lineHeight: 1.1 }}>
-            <div
-              style={{
-                fontSize: 14.5,
-                fontWeight: 700,
-                color: "var(--text)",
-                letterSpacing: "-0.01em",
-                whiteSpace: "nowrap",
-              }}
-            >
-              Molly &amp; Stitch
-            </div>
-            <div style={{ fontSize: 11.5, color: "var(--text-3)", fontWeight: 500 }}>
-              Support Console
-            </div>
-          </div>
-        </div>
-
-        <nav
-          style={{
-            flex: 1,
-            padding: "14px 12px",
+            flex: "none",
+            width: 248,
+            background: "var(--surface-2)",
+            borderRight: "1px solid var(--border)",
             display: "flex",
             flexDirection: "column",
-            gap: 3,
           }}
         >
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.07em",
-              textTransform: "uppercase",
-              color: "var(--text-3)",
-              padding: "6px 10px 7px",
-            }}
-          >
-            Workspace
-          </div>
-          {navItems.map((item) => {
-            const active = isActive(item.to);
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 11,
-                  padding: "9px 11px",
-                  borderRadius: 9,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  background: active ? "var(--surface)" : "transparent",
-                  color: active ? "var(--text)" : "var(--text-2)",
-                }}
-              >
-                <span
-                  style={{
-                    flex: "none",
-                    width: 18,
-                    height: 18,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {item.icon}
-                </span>
-                <span style={{ flex: 1 }}>{item.label}</span>
-                {item.count ? (
-                  <span
-                    style={{
-                      fontSize: 11.5,
-                      fontWeight: 600,
-                      fontFamily: "var(--mono)",
-                      padding: "1px 7px",
-                      borderRadius: 999,
-                      background: active
-                        ? "var(--accent-soft-bg)"
-                        : "var(--surface)",
-                      color: active ? "var(--accent-soft-fg)" : "var(--text-3)",
-                    }}
-                  >
-                    {item.count}
-                  </span>
-                ) : null}
-              </NavLink>
-            );
-          })}
-        </nav>
+          {sidebarContent}
+        </aside>
+      )}
 
-        <div style={{ padding: 12, borderTop: "1px solid var(--border)" }}>
+      {/* Mobile drawer + backdrop */}
+      {isMobile && drawerOpen && (
+        <>
           <div
+            onClick={() => setDrawerOpen(false)}
             style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(20,18,14,.4)",
+              zIndex: 40,
+              animation: "fadein .14s",
+            }}
+          />
+          <aside
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              bottom: 0,
+              width: 264,
+              maxWidth: "82%",
+              background: "var(--surface-2)",
+              borderRight: "1px solid var(--border)",
               display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "8px 10px",
-              borderRadius: 10,
-              background: "var(--surface)",
+              flexDirection: "column",
+              zIndex: 41,
+              boxShadow: "0 12px 30px rgba(20,18,14,.28)",
             }}
           >
-            <div
-              style={{
-                flex: "none",
-                width: 30,
-                height: 30,
-                borderRadius: "50%",
-                background: "var(--cat-sizing-bg)",
-                color: "var(--cat-sizing-fg)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 600,
-                fontSize: 12,
-              }}
-            >
-              {(user?.email ?? "?").slice(0, 2).toUpperCase()}
-            </div>
-            <div style={{ flex: 1, minWidth: 0, lineHeight: 1.2 }}>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: "var(--text)",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {user?.email ?? "Operator"}
-              </div>
-              <div style={{ fontSize: 11.5, color: "var(--text-3)" }}>Owner</div>
-            </div>
-            <span
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                background: "var(--conf-high)",
-              }}
-            />
-          </div>
-        </div>
-      </aside>
+            {sidebarContent}
+          </aside>
+        </>
+      )}
 
       {/* MAIN */}
       <div
@@ -269,64 +315,138 @@ export function Shell({
             height: 60,
             display: "flex",
             alignItems: "center",
-            gap: 14,
-            padding: "0 20px",
+            gap: isMobile ? 10 : 14,
+            padding: isMobile ? "0 14px" : "0 20px",
             background: "var(--surface)",
             borderBottom: "1px solid var(--border)",
           }}
         >
-          <div
-            style={{
-              flex: 1,
-              maxWidth: 440,
-              display: "flex",
-              alignItems: "center",
-              gap: 9,
-              height: 38,
-              padding: "0 13px",
-              borderRadius: 9,
-              background: "var(--surface-2)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <SearchIcon size={16} style={{ color: "var(--text-3)" }} />
-            <span style={{ fontSize: 13.5, color: "var(--text-3)" }}>
-              Search threads, customers, orders…
-            </span>
-            <span
+          {isMobile ? (
+            <>
+              <button
+                onClick={() => setDrawerOpen(true)}
+                aria-label="Open menu"
+                style={{
+                  cursor: "pointer",
+                  width: 38,
+                  height: 38,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 9,
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text-2)",
+                }}
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                >
+                  <path d="M3 6h18M3 12h18M3 18h18" />
+                </svg>
+              </button>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  minWidth: 0,
+                }}
+              >
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 7,
+                    background: "var(--accent)",
+                    color: "var(--accent-fg)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    flex: "none",
+                  }}
+                >
+                  M
+                </div>
+                <span
+                  style={{
+                    fontSize: 14.5,
+                    fontWeight: 700,
+                    letterSpacing: "-0.01em",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  Molly &amp; Stitch
+                </span>
+              </div>
+            </>
+          ) : (
+            <div
               style={{
-                marginLeft: "auto",
-                fontFamily: "var(--mono)",
-                fontSize: 11,
-                color: "var(--text-3)",
+                flex: 1,
+                maxWidth: 440,
+                display: "flex",
+                alignItems: "center",
+                gap: 9,
+                height: 38,
+                padding: "0 13px",
+                borderRadius: 9,
+                background: "var(--surface-2)",
                 border: "1px solid var(--border)",
-                borderRadius: 5,
-                padding: "1px 6px",
               }}
             >
-              ⌘K
-            </span>
-          </div>
+              <SearchIcon size={16} style={{ color: "var(--text-3)" }} />
+              <span style={{ fontSize: 13.5, color: "var(--text-3)" }}>
+                Search threads, customers, orders…
+              </span>
+              <span
+                style={{
+                  marginLeft: "auto",
+                  fontFamily: "var(--mono)",
+                  fontSize: 11,
+                  color: "var(--text-3)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 5,
+                  padding: "1px 6px",
+                }}
+              >
+                ⌘K
+              </span>
+            </div>
+          )}
 
           <div
             style={{
               marginLeft: "auto",
               display: "flex",
               alignItems: "center",
-              gap: 10,
+              gap: isMobile ? 8 : 10,
             }}
           >
             <button
               onClick={() => void triggerSync()}
               disabled={syncing}
+              aria-label="Sync"
               style={{
                 cursor: syncing ? "default" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
-                height: 34,
-                padding: "0 12px",
-                borderRadius: 8,
+                height: isMobile ? 38 : 34,
+                width: isMobile ? 38 : undefined,
+                justifyContent: "center",
+                padding: isMobile ? 0 : "0 12px",
+                borderRadius: isMobile ? 9 : 8,
                 border: "1px solid var(--border)",
                 background: "var(--surface)",
                 color: "var(--text-2)",
@@ -349,49 +469,52 @@ export function Shell({
               ) : (
                 <RefreshIcon size={15} />
               )}
-              {syncing ? "Syncing…" : "Sync"}
+              {!isMobile && (syncing ? "Syncing…" : "Sync")}
             </button>
 
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                height: 34,
-                padding: "0 11px 0 9px",
-                borderRadius: 8,
-                border: "1px solid var(--border)",
-                background: "var(--surface)",
-              }}
-            >
-              <span
+            {!isMobile && (
+              <div
                 style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: gmailConnected
-                    ? "var(--conf-high)"
-                    : "var(--text-3)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  height: 34,
+                  padding: "0 11px 0 9px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
                 }}
-              />
-              <span
-                style={{ fontSize: 12.5, color: "var(--text-2)", fontWeight: 500 }}
               >
-                {connectedAccount}
-              </span>
-            </div>
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: gmailConnected
+                      ? "var(--conf-high)"
+                      : "var(--text-3)",
+                  }}
+                />
+                <span
+                  style={{ fontSize: 12.5, color: "var(--text-2)", fontWeight: 500 }}
+                >
+                  {connectedAccount}
+                </span>
+              </div>
+            )}
 
             <button
               onClick={toggle}
               title="Toggle theme"
+              aria-label="Toggle theme"
               style={{
                 cursor: "pointer",
-                width: 34,
-                height: 34,
+                width: isMobile ? 38 : 34,
+                height: isMobile ? 38 : 34,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                borderRadius: 8,
+                borderRadius: isMobile ? 9 : 8,
                 border: "1px solid var(--border)",
                 background: "var(--surface)",
                 color: "var(--text-2)",
