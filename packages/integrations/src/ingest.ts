@@ -100,6 +100,12 @@ async function upsertThread(
   const snippet = isInbound
     ? makeSnippet(parsed.bodyText, parsed.subject)
     : null;
+  // Pass dates into raw sql fragments as ISO strings (with an explicit cast),
+  // not Date objects — the postgres driver can't serialize a bare Date when
+  // there's no column type to infer from inside greatest()/coalesce().
+  const lastAtIso = parsed.internalDate
+    ? parsed.internalDate.toISOString()
+    : null;
 
   const inserted = await db
     .insert(threads)
@@ -119,8 +125,8 @@ async function upsertThread(
         customerEmail: sql`coalesce(${threads.customerEmail}, ${customerEmail ?? null})`,
         customerName: sql`coalesce(${threads.customerName}, ${customerName ?? null})`,
         snippet: sql`coalesce(${snippet}, ${threads.snippet})`,
-        lastMessageAt: sql`greatest(${threads.lastMessageAt}, ${parsed.internalDate})`,
-        updatedAt: new Date(),
+        lastMessageAt: sql`greatest(${threads.lastMessageAt}, ${lastAtIso}::timestamptz)`,
+        updatedAt: sql`now()`,
       },
     })
     .returning({ id: threads.id });
