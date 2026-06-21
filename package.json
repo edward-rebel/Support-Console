@@ -1,0 +1,22 @@
+{
+  "name": "molly-and-stitch-support-console",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --stream --if-present dev",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "pnpm -r --if-present lint",
+    "db:generate": "pnpm --filter @ms/db generate",
+    "db:migrate": "pnpm --filter @ms/db migrate",
+    "db:seed": "pnpm --filter @ms/db seed",
+    "db:enable-vector": "pnpm --filter @ms/db enable-vector"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sans:'Source Sans 3',system-ui,sans-serif; --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --bg:#EFEDE7; --surface:#FFFFFF; --surface-2:#F7F5F1; --surface-3:#FBFAF8; --hover:#F1EFEA;
+    --border:#E7E3DC; --border-2:#EDEAE4; --shadow:0 1px 2px rgba(40,38,34,.05);
+    --text:#23211E; --text-2:#56524C; --text-3:#928D85;
+    --accent:#2F5D50; --accent-press:#274f44; --accent-fg:#FFFFFF;
+    --accent-soft-bg:#E3EFE8; --accent-soft-fg:#2C6A52;
+    --cat-exchange-bg:#F3E8DF; --cat-exchange-fg:#8A4B26;
+    --cat-shipping-bg:#E4ECF4; --cat-shipping-fg:#2C5680;
+    --cat-sizing-bg:#EDE7F3; --cat-sizing-fg:#6B4A86;
+    --cat-discount-bg:#F2ECDA; --cat-discount-fg:#85661F;
+    --cat-other-bg:#ECE9E2; --cat-other-fg:#5C574F;
+    --st-new-bg:#E7EEF5; --st-new-fg:#2C5680;
+    --st-drafting-bg:#F2ECDA; --st-drafting-fg:#85661F;
+    --st-review-bg:#E3EFE8; --st-review-fg:#2C6A52;
+    --st-sent-bg:#EAE7E0; --st-sent-fg:#6B675F;
+    --st-dismissed-bg:#EDEAE4; --st-dismissed-fg:#928D85;
+    --conf-high:#2F7D5E; --conf-med:#B07D2A; --conf-low:#A86A3A; --dot-off:#DAD5CC;
+    --warn-bg:#FBF4E7; --warn-bd:#EAD9B5; --warn-fg:#8A6A2A; --warn-fg2:#9A8A63; --warn-tx:#5C4D2E;
+  }
+  [data-theme="dark"]{
+    --bg:#171614; --surface:#211F1C; --surface-2:#1C1B18; --surface-3:#1F1E1A; --hover:#2A2825;
+    --border:#332F2A; --border-2:#2C2A26; --shadow:0 1px 2px rgba(0,0,0,.3);
+    --text:#ECE8E1; --text-2:#AEA9A0; --text-3:#7C776F;
+    --accent:#4F9E84; --accent-press:#5cae93; --accent-fg:#0E1B16;
+    --accent-soft-bg:#1C342B; --accent-soft-fg:#6FBC9E;
+    --cat-exchange-bg:#382820; --cat-exchange-fg:#D49A70;
+    --cat-shipping-bg:#1E2E3B; --cat-shipping-fg:#82B0DA;
+    --cat-sizing-bg:#2B2438; --cat-sizing-fg:#B59AD4;
+    --cat-discount-bg:#33301C; --cat-discount-fg:#CBAF68;
+    --cat-other-bg:#2A2824; --cat-other-fg:#A39E94;
+    --st-new-bg:#1E2E3B; --st-new-fg:#82B0DA;
+    --st-drafting-bg:#33301C; --st-drafting-fg:#CBAF68;
+    --st-review-bg:#1C342B; --st-review-fg:#6FBC9E;
+    --st-sent-bg:#2A2824; --st-sent-fg:#9A958C;
+    --st-dismissed-bg:#262420; --st-dismissed-fg:#7C776F;
+    --conf-high:#5AA886; --conf-med:#C09A4E; --conf-low:#C0895A; --dot-off:#3A372F;
+    --warn-bg:#2E2814; --warn-bd:#4A3F22; --warn-fg:#CBAF68; --warn-fg2:#9A8A63; --warn-tx:#D8C79A;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{font-family:var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:6px;border:2px solid transparent;background-clip:padding-box;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  @keyframes fadein{from{opacity:0;}to{opacity:1;}}
+  @keyframes popin{from{opacity:0;transform:translateY(8px) scale(.98);}to{opacity:1;transform:none;}}
+  @keyframes toastin{from{opacity:0;transform:translate(-50%,14px);}to{opacity:1;transform:translate(-50%,0);}}
+  [contenteditable]:focus{outline:none;}
+</style>
+</helmet>
+
+<div data-theme="{{ theme }}" style="display:flex; height:100vh; width:100%; background:var(--bg); color:var(--text); font-family:var(--sans); overflow:hidden;">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside style="flex:none; width:248px; background:var(--surface-2); border-right:1px solid var(--border); display:flex; flex-direction:column;">
+    <div style="height:60px; display:flex; align-items:center; gap:11px; padding:0 18px; border-bottom:1px solid var(--border);">
+      <div style="width:30px; height:30px; border-radius:8px; background:var(--accent); color:var(--accent-fg); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; font-family:var(--sans);">M</div>
+      <div style="line-height:1.1;">
+        <div style="font-size:14.5px; font-weight:700; color:var(--text); letter-spacing:-0.01em; white-space:nowrap;">Molly &amp; Stitch</div>
+        <div style="font-size:11.5px; color:var(--text-3); font-weight:500;">Support Console</div>
+      </div>
+    </div>
+
+    <nav style="flex:1; padding:14px 12px; display:flex; flex-direction:column; gap:3px;">
+      <div style="font-size:11px; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:var(--text-3); padding:6px 10px 7px;">Workspace</div>
+      <sc-for list="{{ nav }}" as="item" hint-placeholder-count="5">
+        <button onClick="{{ item.go }}" style="border:none; cursor:pointer; width:100%; text-align:left; display:flex; align-items:center; gap:11px; padding:9px 11px; border-radius:9px; font-family:var(--sans); font-size:14px; font-weight:500; background:{{ item.bg }}; color:{{ item.fg }};">
+          <span style="flex:none; width:18px; height:18px; display:flex; align-items:center; justify-content:center;" dangerouslySetInnerHTML="{{ item.icon }}"></span>
+          <span style="flex:1;">{{ item.label }}</span>
+          <sc-if value="{{ item.count }}" hint-placeholder-val="{{ true }}">
+            <span style="font-size:11.5px; font-weight:600; font-family:var(--mono); padding:1px 7px; border-radius:999px; background:{{ item.countBg }}; color:{{ item.countFg }};">{{ item.count }}</span>
+          </sc-if>
+        </button>
+      </sc-for>
+    </nav>
+
+    <div style="padding:12px; border-top:1px solid var(--border);">
+      <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:10px; background:var(--surface);">
+        <div style="flex:none; width:30px; height:30px; border-radius:50%; background:var(--cat-sizing-bg); color:var(--cat-sizing-fg); display:flex; align-items:center; justify-content:center; font-weight:600; font-size:12px;">MA</div>
+        <div style="flex:1; min-width:0; line-height:1.2;">
+          <div style="font-size:13px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Maya Alvarez</div>
+          <div style="font-size:11.5px; color:var(--text-3);">Owner</div>
+        </div>
+        <span style="width:7px; height:7px; border-radius:50%; background:var(--conf-high);"></span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <div style="flex:1; min-width:0; min-height:0; display:flex; flex-direction:column;">
+
+    <!-- TOP BAR -->
+    <header style="flex:none; height:60px; display:flex; align-items:center; gap:14px; padding:0 20px; background:var(--surface); border-bottom:1px solid var(--border);">
+      <div style="flex:1; max-width:440px; display:flex; align-items:center; gap:9px; height:38px; padding:0 13px; border-radius:9px; background:var(--surface-2); border:1px solid var(--border);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3-3"></path></svg>
+        <span style="font-size:13.5px; color:var(--text-3);">Search threads, customers, orders…</span>
+        <span style="margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--text-3); border:1px solid var(--border); border-radius:5px; padding:1px 6px;">⌘K</span>
+      </div>
+
+      <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+        <button onClick="{{ sync }}" style="cursor:pointer; display:flex; align-items:center; gap:8px; height:34px; padding:0 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text-2); font-family:var(--sans); font-size:12.5px; font-weight:500;">
+          <span style="display:flex;" dangerouslySetInnerHTML="{{ syncIcon }}"></span>
+          {{ syncLabel }}
+        </button>
+
+        <div style="display:flex; align-items:center; gap:8px; height:34px; padding:0 11px 0 9px; border-radius:8px; border:1px solid var(--border); background:var(--surface);">
+          <span style="width:7px; height:7px; border-radius:50%; background:var(--conf-high);"></span>
+          <span style="font-size:12.5px; color:var(--text-2); font-weight:500;">support@mollystitch.com</span>
+        </div>
+
+        <button onClick="{{ toggleDark }}" title="Toggle theme" style="cursor:pointer; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text-2);" dangerouslySetInnerHTML="{{ themeIcon }}"></button>
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <div style="flex:1; min-height:0; min-width:0; display:flex; flex-direction:column; overflow:hidden;">
+
+      <!-- ============ INBOX ============ -->
+      <sc-if value="{{ isInbox }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden;">
+        <!-- inbox toolbar -->
+        <div style="flex:none; padding:20px 28px 0;">
+          <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:16px;">
+            <div>
+              <h1 style="margin:0 0 3px; font-size:21px; font-weight:700; letter-spacing:-0.015em; color:var(--text);">Inbox</h1>
+              <div style="font-size:13.5px; color:var(--text-3);">{{ inboxSubtitle }}</div>
+            </div>
+            <sc-if value="{{ isSyncing }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--accent-soft-fg); background:var(--accent-soft-bg); padding:6px 12px; border-radius:999px;">
+                <span style="width:13px; height:13px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; display:inline-block; animation:spin .7s linear infinite;"></span>
+                Syncing Gmail &amp; Shopify…
+              </div>
+            </sc-if>
+          </div>
+
+          <!-- customer vs noise segmented -->
+          <div style="display:flex; align-items:center; gap:14px;">
+            <div style="display:inline-flex; padding:3px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px;">
+              <button onClick="{{ tabCustomer }}" style="cursor:pointer; border:none; font-family:var(--sans); font-size:13.5px; font-weight:600; padding:7px 14px; border-radius:7px; display:flex; align-items:center; gap:8px; background:{{ tabCustBg }}; color:{{ tabCustFg }}; box-shadow:{{ tabCustShadow }};">
+                Customer requests
+                <span style="font-family:var(--mono); font-size:11px; font-weight:600; padding:1px 7px; border-radius:999px; background:{{ tabCustCntBg }}; color:{{ tabCustCntFg }};">{{ custCount }}</span>
+              </button>
+              <button onClick="{{ tabNoise }}" style="cursor:pointer; border:none; font-family:var(--sans); font-size:13.5px; font-weight:600; padding:7px 14px; border-radius:7px; display:flex; align-items:center; gap:8px; background:{{ tabNoiseBg }}; color:{{ tabNoiseFg }}; box-shadow:{{ tabNoiseShadow }};">
+                Filtered out
+                <span style="font-family:var(--mono); font-size:11px; font-weight:600; padding:1px 7px; border-radius:999px; background:{{ tabNoiseCntBg }}; color:{{ tabNoiseCntFg }};">{{ noiseCount }}</span>
+              </button>
+            </div>
+
+            <sc-if value="{{ isCustomerTab }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex; align-items:center; gap:7px;">
+              <sc-for list="{{ statusChips }}" as="chip" hint-placeholder-count="3">
+                <button onClick="{{ chip.go }}" style="cursor:pointer; font-family:var(--sans); font-size:13px; font-weight:{{ chip.weight }}; padding:6px 12px; border-radius:8px; border:1px solid {{ chip.bd }}; background:{{ chip.bg }}; color:{{ chip.fg }}; display:flex; align-items:center; gap:7px;">
+                  {{ chip.label }}
+                  <sc-if value="{{ chip.count }}" hint-placeholder-val="{{ true }}"><span style="font-family:var(--mono); font-size:11px; opacity:.8;">{{ chip.count }}</span></sc-if>
+                </button>
+              </sc-for>
+              <div style="width:1px; height:20px; background:var(--border); margin:0 3px;"></div>
+              <button style="cursor:pointer; font-family:var(--sans); font-size:13px; font-weight:500; padding:6px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text-2); display:flex; align-items:center; gap:7px;">
+                All categories
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+              </button>
+            </div>
+            </sc-if>
+          </div>
+        </div>
+
+        <!-- list -->
+        <div style="flex:1; min-height:0; overflow:auto; padding:16px 28px 28px;">
+
+          <!-- customer requests list -->
+          <sc-if value="{{ isCustomerTab }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ true }}">
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:13px; overflow:hidden; box-shadow:var(--shadow);">
+              <sc-for list="{{ rows }}" as="row" hint-placeholder-count="6">
+                <div onClick="{{ row.open }}" style="cursor:pointer; display:flex; align-items:center; gap:15px; padding:15px 18px; border-bottom:1px solid var(--border-2); background:{{ row.rowBg }};">
+                  <div style="flex:none; width:9px; display:flex; justify-content:center;">
+                    <sc-if value="{{ row.unread }}" hint-placeholder-val="{{ false }}"><span style="width:7px; height:7px; border-radius:50%; background:var(--accent);"></span></sc-if>
+                  </div>
+                  <div style="flex:none; width:40px; height:40px; border-radius:50%; background:{{ row.avBg }}; color:{{ row.avFg }}; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:14px;">{{ row.initials }}</div>
+                  <div style="flex:none; width:178px; min-width:0;">
+                    <div style="font-size:14.5px; font-weight:{{ row.nameWeight }}; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ row.name }}</div>
+                    <div style="font-size:12px; color:var(--text-3); font-family:var(--mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ row.email }}</div>
+                  </div>
+                  <div style="flex:1; min-width:0;">
+                    <div style="font-size:14px; font-weight:{{ row.nameWeight }}; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ row.subject }}</div>
+                    <div style="font-size:13px; color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ row.snippet }}</div>
+                  </div>
+                  <span style="flex:none; width:104px; font-size:11px; font-weight:600; letter-spacing:0.02em; padding:3px 9px; border-radius:999px; background:{{ row.catBg }}; color:{{ row.catFg }}; white-space:nowrap; text-align:center;">{{ row.category }}</span>
+                  <div style="flex:none; width:118px; display:flex; justify-content:flex-start;">
+                    <span style="font-size:11.5px; font-weight:600; padding:3px 10px; border-radius:999px; background:{{ row.stBg }}; color:{{ row.stFg }}; display:inline-flex; align-items:center; gap:6px; white-space:nowrap;">
+                      <sc-if value="{{ row.stPulse }}" hint-placeholder-val="{{ false }}"><span style="width:6px; height:6px; border-radius:50%; background:currentColor; animation:pulse 1.3s ease-in-out infinite;"></span></sc-if>
+                      {{ row.status }}
+                    </span>
+                  </div>
+                  <div style="flex:none; width:84px; display:flex; justify-content:flex-start;">
+                    <sc-if value="{{ row.hasConf }}" hint-placeholder-val="{{ false }}">
+                      <span style="display:inline-flex; align-items:center; gap:6px;" title="Draft confidence">
+                        <span style="width:7px; height:7px; border-radius:50%; background:{{ row.confColor }};"></span>
+                        <span style="font-size:12px; font-weight:600; color:{{ row.confColor }};">{{ row.confLabel }}</span>
+                      </span>
+                    </sc-if>
+                  </div>
+                  <div style="flex:none; width:62px; text-align:right; font-size:12px; color:var(--text-3);">{{ row.time }}</div>
+                </div>
+              </sc-for>
+            </div>
+            </sc-if>
+
+            <!-- empty (all caught up) -->
+            <sc-if value="{{ showCaughtUp }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:90px 20px; text-align:center;">
+              <div style="width:62px; height:62px; border-radius:50%; background:var(--accent-soft-bg); color:var(--accent-soft-fg); display:flex; align-items:center; justify-content:center; margin-bottom:18px;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+              </div>
+              <div style="font-size:18px; font-weight:700; color:var(--text); margin-bottom:6px;">You're all caught up</div>
+              <div style="font-size:14px; color:var(--text-3); max-width:340px; line-height:1.5;">No threads need your review right now. New customer requests will surface here as they arrive.</div>
+            </div>
+            </sc-if>
+          </div>
+          </sc-if>
+
+          <!-- noise list -->
+          <sc-if value="{{ isNoiseTab }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="display:flex; align-items:center; gap:9px; font-size:13px; color:var(--text-3); margin-bottom:13px; padding:0 2px;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18M6 12h12M10 19h4"></path></svg>
+              Automatically filtered by your sender rules — not shown in customer requests. <span style="color:var(--accent); font-weight:600; cursor:pointer;">Manage rules</span>
+            </div>
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:13px; overflow:hidden; box-shadow:var(--shadow);">
+              <sc-for list="{{ noise }}" as="n" hint-placeholder-count="5">
+                <div style="display:flex; align-items:center; gap:15px; padding:14px 18px; border-bottom:1px solid var(--border-2); opacity:.78;">
+                  <div style="flex:none; width:40px; height:40px; border-radius:10px; background:var(--surface-2); border:1px solid var(--border); color:var(--text-3); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px;">{{ n.initials }}</div>
+                  <div style="flex:none; width:178px; min-width:0;">
+                    <div style="font-size:14px; font-weight:600; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ n.name }}</div>
+                    <div style="font-size:12px; color:var(--text-3); font-family:var(--mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ n.email }}</div>
+                  </div>
+                  <div style="flex:1; min-width:0;">
+                    <div style="font-size:13.5px; color:var(--text-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ n.subject }}</div>
+                  </div>
+                  <span style="flex:none; font-size:11px; font-weight:500; padding:3px 10px; border-radius:999px; background:var(--surface-2); border:1px solid var(--border); color:var(--text-3);">{{ n.rule }}</span>
+                  <button style="flex:none; cursor:pointer; font-family:var(--sans); font-size:12.5px; font-weight:500; padding:5px 11px; border-radius:7px; border:1px solid var(--border); background:var(--surface); color:var(--text-2);">Not noise?</button>
+                  <div style="flex:none; width:62px; text-align:right; font-size:12px; color:var(--text-3);">{{ n.time }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          </sc-if>
+
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ============ REVIEW (layout A) ============ -->
+      <sc-if value="{{ isReview }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Thread review" style="flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden;">
+        <!-- review header -->
+        <div style="flex:none; height:60px; display:flex; align-items:center; gap:13px; padding:0 22px; border-bottom:1px solid var(--border); background:var(--surface);">
+          <button onClick="{{ back }}" style="cursor:pointer; width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text-2); display:flex; align-items:center; justify-content:center;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>
+          </button>
+          <span style="font-size:11px; font-weight:600; letter-spacing:0.02em; padding:3px 10px; border-radius:999px; background:{{ sel.catBg }}; color:{{ sel.catFg }};">{{ sel.category }}</span>
+          <div style="font-size:15px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:520px;">{{ sel.subject }}</div>
+          <div style="margin-left:auto; display:flex; align-items:center; gap:9px;">
+            <span style="font-size:12.5px; color:var(--text-3);">Draft confidence</span>
+            <sc-for list="{{ sel.dots }}" as="d" hint-placeholder-count="3"><i style="width:6px; height:6px; border-radius:50%; background:{{ d.color }}; display:inline-block;"></i></sc-for>
+            <span style="font-size:12.5px; font-weight:600; color:{{ sel.confColor }};">{{ sel.confLabel }}</span>
+          </div>
+        </div>
+
+        <div style="flex:1; min-height:0; display:flex;">
+          <!-- left: thread + composer -->
+          <div style="flex:1.62; min-width:0; display:flex; flex-direction:column; border-right:1px solid var(--border); background:var(--surface);">
+            <div style="flex:1; min-height:0; overflow:auto; padding:24px 30px;">
+              <sc-if value="{{ sel.hasEarlier }}" hint-placeholder-val="{{ false }}">
+                <div style="text-align:center; margin-bottom:20px;"><span style="font-size:12.5px; color:var(--text-3); background:var(--surface-2); padding:4px 13px; border-radius:999px;">Earlier in conversation · {{ sel.earlierCount }}</span></div>
+              </sc-if>
+              <sc-for list="{{ sel.messages }}" as="msg" hint-placeholder-count="1">
+                <div style="display:flex; gap:14px; margin-bottom:22px;">
+                  <div style="flex:none; width:40px; height:40px; border-radius:50%; background:{{ sel.avBg }}; color:{{ sel.avFg }}; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:14px;">{{ sel.initials }}</div>
+                  <div style="flex:1; min-width:0;">
+                    <div style="display:flex; align-items:baseline; gap:9px; margin-bottom:4px;">
+                      <span style="font-weight:600; font-size:15px; color:var(--text);">{{ sel.name }}</span>
+                      <span style="font-size:12px; color:var(--text-3); font-family:var(--mono);">{{ sel.email }}</span>
+                      <span style="margin-left:auto; font-size:12.5px; color:var(--text-3);">{{ msg.time }}</span>
+                    </div>
+                    <div style="font-size:15.5px; line-height:1.68; color:var(--text);">
+                      <sc-for list="{{ msg.paras }}" as="p" hint-placeholder-count="2"><p style="margin:0 0 12px;">{{ p }}</p></sc-for>
+                    </div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+
+            <!-- composer -->
+            <div style="flex:none; border-top:1px solid var(--border); background:var(--surface-3); padding:16px 30px 0;">
+              <div style="display:flex; align-items:center; gap:9px; margin-bottom:11px;">
+                <span style="width:20px; height:20px; border-radius:5px; background:var(--accent); color:var(--accent-fg); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;">✦</span>
+                <span style="font-size:13px; font-weight:600; color:var(--text);">AI draft</span>
+                <span style="font-size:12.5px; color:var(--text-3);">· reply to {{ sel.name }} · generated as <span style="color:var(--cat-text-inline,var(--text-2)); font-weight:600;">{{ sel.category }}</span></span>
+                <span style="margin-left:auto; font-size:12px; color:var(--text-3); display:inline-flex; align-items:center; gap:6px;">{{ sel.saveState }}</span>
+              </div>
+              <div style="position:relative;">
+                <div contenteditable="true" style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 18px; font-size:14.5px; line-height:1.62; color:var(--text); max-height:236px; overflow:auto;">
+                  <sc-for list="{{ draftParas }}" as="p" hint-placeholder-count="4"><p style="margin:0 0 11px;">{{ p }}</p></sc-for>
+                </div>
+                <sc-if value="{{ regenerating }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute; inset:0; border-radius:10px; background:var(--surface); display:flex; align-items:center; justify-content:center; gap:10px; color:var(--accent-soft-fg); font-size:13.5px; font-weight:500;">
+                    <span style="width:15px; height:15px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; display:inline-block; animation:spin .7s linear infinite;"></span>
+                    Regenerating draft…
+                  </div>
+                </sc-if>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px; padding:15px 0;">
+                <button onClick="{{ askSendReview }}" style="border:none; cursor:pointer; background:var(--accent); color:var(--accent-fg); font-family:var(--sans); font-size:14.5px; font-weight:600; padding:11px 20px; border-radius:9px; display:inline-flex; align-items:center; gap:10px; box-shadow:0 1px 2px rgba(47,93,80,.3), inset 0 1px 0 rgba(255,255,255,.14);">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"></path><path d="M22 2 15 22l-4-9-9-4Z"></path></svg>
+                  Approve &amp; Send <span style="opacity:.65; font-weight:500; font-family:var(--mono); font-size:12px; border-left:1px solid rgba(255,255,255,.25); padding-left:9px; margin-left:2px;">A</span>
+                </button>
+                <button style="border:1px solid var(--border); cursor:pointer; background:var(--surface); color:var(--text-2); font-family:var(--sans); font-size:14px; font-weight:500; padding:10px 15px; border-radius:9px;">Edit</button>
+                <button onClick="{{ regenerate }}" style="border:1px solid var(--border); cursor:pointer; background:var(--surface); color:var(--text-2); font-family:var(--sans); font-size:14px; font-weight:500; padding:10px 15px; border-radius:9px; display:inline-flex; align-items:center; gap:8px;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path></svg>
+                  Regenerate
+                </button>
+                <button onClick="{{ dismissSel }}" style="margin-left:auto; border:none; cursor:pointer; background:transparent; color:var(--text-3); font-family:var(--sans); font-size:14px; font-weight:500; padding:10px 12px; border-radius:8px;">Dismiss · not a request</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- right: context rail -->
+          <div style="flex:none; width:392px; overflow:auto; padding:24px 22px; background:var(--surface-2);">
+            <div style="font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-3); margin-bottom:13px;">Context</div>
+
+            <!-- order card / empty -->
+            <sc-if value="{{ sel.hasOrder }}" hint-placeholder-val="{{ true }}">
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:16px; box-shadow:var(--shadow);">
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 15px; border-bottom:1px solid var(--border-2);">
+                <div style="display:flex; align-items:center; gap:9px;">
+                  <span style="width:22px; height:22px; border-radius:6px; background:#5A8E2E; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;">S</span>
+                  <span style="font-family:var(--mono); font-size:14px; font-weight:500; color:var(--text);">{{ sel.order.num }}</span>
+                </div>
+                <span style="font-size:11.5px; font-weight:600; padding:3px 10px; border-radius:999px; background:{{ sel.order.statusBg }}; color:{{ sel.order.statusFg }};">{{ sel.order.status }}</span>
+              </div>
+              <div style="padding:6px 15px;">
+                <sc-for list="{{ sel.order.items }}" as="it" hint-placeholder-count="1">
+                  <div style="display:flex; gap:12px; padding:9px 0; border-bottom:1px solid var(--border-2);">
+                    <div style="flex:none; width:46px; height:46px; border-radius:8px; background:repeating-linear-gradient(135deg,var(--hover),var(--hover) 5px,var(--surface-2) 5px,var(--surface-2) 10px); border:1px solid var(--border);"></div>
+                    <div style="flex:1; min-width:0;">
+                      <div style="font-size:14px; font-weight:600; color:var(--text);">{{ it.name }}</div>
+                      <div style="font-size:12.5px; color:var(--text-3);">{{ it.variant }}</div>
+                      <div style="font-family:var(--mono); font-size:12.5px; color:var(--text-2); margin-top:2px;">{{ it.price }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="padding:11px 15px; display:flex; flex-direction:column; gap:7px;">
+                <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--text-3);">Ordered</span><span style="color:var(--text-2);">{{ sel.order.ordered }}</span></div>
+                <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--text-3);">{{ sel.order.shipLabel }}</span><span style="color:var(--text-2);">{{ sel.order.shipValue }}</span></div>
+                <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:var(--text-3);">Customer</span><span style="color:var(--text-2);">{{ sel.order.history }}</span></div>
+              </div>
+            </div>
+            </sc-if>
+            <sc-if value="{{ sel.noOrder }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--surface); border:1px dashed var(--border); border-radius:12px; padding:20px 16px; margin-bottom:16px; text-align:center;">
+              <div style="width:38px; height:38px; border-radius:9px; background:var(--surface-2); color:var(--text-3); display:flex; align-items:center; justify-content:center; margin:0 auto 10px;">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18l-2 13H5L3 6Z"></path><path d="M3 6 2 3"></path><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+              </div>
+              <div style="font-size:14px; font-weight:600; color:var(--text-2); margin-bottom:4px;">No matching order found</div>
+              <div style="font-size:12.5px; color:var(--text-3); line-height:1.5;">This sender's email isn't tied to a Shopify order. The draft answers from the knowledge base only.</div>
+            </div>
+            </sc-if>
+
+            <!-- recommended action -->
+            <sc-if value="{{ sel.suggested }}" hint-placeholder-val="{{ false }}">
+            <div style="background:var(--warn-bg); border:1px solid var(--warn-bd); border-radius:12px; padding:14px 15px; margin-bottom:16px;">
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warn-fg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4a2 2 0 0 1 2-2h9l-1 4 1 4H6"></path></svg>
+                <span style="font-size:11.5px; font-weight:700; letter-spacing:0.03em; color:var(--warn-fg); text-transform:uppercase;">Suggested action</span>
+              </div>
+              <div style="font-size:14px; line-height:1.55; color:var(--warn-tx);">{{ sel.suggested.text }}</div>
+              <div style="font-size:12.5px; color:var(--warn-fg2); margin-top:7px; font-style:italic; display:flex; align-items:center; gap:6px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></svg>
+                {{ sel.suggested.note }}
+              </div>
+            </div>
+            </sc-if>
+
+            <!-- based on -->
+            <div style="font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-3); margin-bottom:10px;">Draft based on</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <sc-for list="{{ sel.basedOn }}" as="b" hint-placeholder-count="2">
+                <div style="display:flex; gap:11px; align-items:flex-start; background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:11px 13px; cursor:pointer;">
+                  <span style="flex:none; width:26px; height:26px; border-radius:7px; background:{{ b.iconBg }}; color:{{ b.iconFg }}; display:flex; align-items:center; justify-content:center;" dangerouslySetInnerHTML="{{ b.icon }}"></span>
+                  <div style="flex:1; min-width:0;">
+                    <div style="font-size:13.5px; font-weight:600; color:var(--text);">{{ b.title }}</div>
+                    <div style="font-size:12px; color:var(--text-3);">{{ b.sub }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ============ APPROVALS ============ -->
+      <sc-if value="{{ isApprovals }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden; background:var(--bg);">
+        <div style="flex:none; padding:18px 28px; display:flex; align-items:center; gap:16px; border-bottom:1px solid var(--border); background:var(--surface);">
+          <div>
+            <h1 style="margin:0 0 2px; font-size:19px; font-weight:700; letter-spacing:-0.015em; color:var(--text);">Approvals</h1>
+            <div style="font-size:13px; color:var(--text-3);">Focused review — one at a time</div>
+          </div>
+          <div style="flex:1; max-width:340px; margin:0 auto;">
+            <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; color:var(--text-3); margin-bottom:6px;">
+              <span style="font-weight:600; color:var(--text-2);">{{ apprProgress }}</span>
+              <span>{{ apprDoneLabel }}</span>
+            </div>
+            <div style="height:6px; border-radius:999px; background:var(--surface-2); overflow:hidden;"><div style="height:100%; width:{{ apprPct }}; background:var(--accent); border-radius:999px;"></div></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-family:var(--mono); font-size:11px; color:var(--text-3); border:1px solid var(--border); border-radius:6px; padding:3px 7px;">J / K to move</span>
+          </div>
+        </div>
+
+        <sc-if value="{{ apprHasCurrent }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1; min-height:0; overflow:auto; padding:26px; display:flex; justify-content:center;">
+          <div style="width:100%; max-width:1080px; background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:0 4px 20px rgba(40,38,34,.06); overflow:hidden; display:flex; flex-direction:column;">
+            <div style="display:flex; align-items:center; gap:12px; padding:16px 22px; border-bottom:1px solid var(--border-2);">
+              <div style="width:40px; height:40px; border-radius:50%; background:{{ appr.avBg }}; color:{{ appr.avFg }}; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:14px;">{{ appr.initials }}</div>
+              <div style="flex:1; min-width:0;">
+                <div style="font-size:15px; font-weight:600; color:var(--text);">{{ appr.name }} <span style="font-weight:400; color:var(--text-3); font-size:13px;">· {{ appr.subject }}</span></div>
+                <div style="font-size:12.5px; color:var(--text-3); font-family:var(--mono);">{{ appr.email }}</div>
+              </div>
+              <span style="font-size:11px; font-weight:600; padding:3px 10px; border-radius:999px; background:{{ appr.catBg }}; color:{{ appr.catFg }};">{{ appr.category }}</span>
+              <span style="display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:{{ appr.confColor }};"><span style="width:7px;height:7px;border-radius:50%;background:{{ appr.confColor }};"></span>{{ appr.confLabel }}</span>
+            </div>
+            <div style="display:flex; min-height:0;">
+              <div style="flex:1.1; padding:20px 24px; border-right:1px solid var(--border-2);">
+                <div style="font-family:var(--mono); font-size:11px; letter-spacing:0.07em; text-transform:uppercase; color:var(--text-3); margin-bottom:11px;">Customer wrote</div>
+                <div style="font-size:15px; line-height:1.65; color:var(--text);">
+                  <sc-for list="{{ appr.firstParas }}" as="p" hint-placeholder-count="2"><p style="margin:0 0 11px;">{{ p }}</p></sc-for>
+                </div>
+                <sc-if value="{{ appr.hasOrder }}" hint-placeholder-val="{{ true }}">
+                <div style="margin-top:18px; display:flex; align-items:center; gap:11px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:11px 13px;">
+                  <div style="flex:none; width:38px; height:38px; border-radius:7px; background:repeating-linear-gradient(135deg,var(--hover),var(--hover) 5px,var(--surface-3) 5px,var(--surface-3) 10px); border:1px solid var(--border);"></div>
+                  <div style="font-size:12.5px; color:var(--text-2);"><span style="font-family:var(--mono); font-weight:500; color:var(--text);">{{ appr.order.num }}</span> · {{ appr.orderLine }}</div>
+                </div>
+                </sc-if>
+              </div>
+              <div style="flex:1; padding:20px 24px; background:var(--surface-3);">
+                <div style="font-family:var(--mono); font-size:11px; letter-spacing:0.07em; text-transform:uppercase; color:var(--text-3); margin-bottom:11px; display:flex; align-items:center; gap:7px;"><span style="width:15px;height:15px;border-radius:4px;background:var(--accent);color:var(--accent-fg);display:inline-flex;align-items:center;justify-content:center;font-size:9px;">✦</span> AI draft reply</div>
+                <div style="font-size:14.5px; line-height:1.62; color:var(--text);">
+                  <sc-for list="{{ apprDraft }}" as="p" hint-placeholder-count="3"><p style="margin:0 0 11px;">{{ p }}</p></sc-for>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding:16px 22px; border-top:1px solid var(--border-2); background:var(--surface);">
+              <button onClick="{{ askSendAppr }}" style="border:none; cursor:pointer; background:var(--accent); color:var(--accent-fg); font-family:var(--sans); font-size:14.5px; font-weight:600; padding:11px 20px; border-radius:9px; display:inline-flex; align-items:center; gap:10px; box-shadow:0 1px 2px rgba(47,93,80,.3), inset 0 1px 0 rgba(255,255,255,.14);">
+                Approve &amp; Send <span style="opacity:.65; font-weight:500; font-family:var(--mono); font-size:12px; border-left:1px solid rgba(255,255,255,.25); padding-left:9px;">A</span>
+              </button>
+              <button onClick="{{ openApprThread }}" style="border:1px solid var(--border); cursor:pointer; background:var(--surface); color:var(--text-2); font-family:var(--sans); font-size:14px; font-weight:500; padding:10px 15px; border-radius:9px;">Edit <span style="font-family:var(--mono); font-size:11px; color:var(--text-3); margin-left:5px;">E</span></button>
+              <button onClick="{{ dismissAppr }}" style="border:1px solid var(--border); cursor:pointer; background:var(--surface); color:var(--text-2); font-family:var(--sans); font-size:14px; font-weight:500; padding:10px 15px; border-radius:9px;">Dismiss <span style="font-family:var(--mono); font-size:11px; color:var(--text-3); margin-left:5px;">D</span></button>
+              <button onClick="{{ apprNext }}" style="margin-left:auto; border:none; cursor:pointer; background:var(--surface-2); color:var(--text-2); font-family:var(--sans); font-size:14px; font-weight:600; padding:10px 16px; border-radius:9px; display:inline-flex; align-items:center; gap:8px;">Skip <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></button>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+        <sc-if value="{{ apprEmpty }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px;">
+          <div style="width:64px; height:64px; border-radius:50%; background:var(--accent-soft-bg); color:var(--accent-soft-fg); display:flex; align-items:center; justify-content:center; margin-bottom:18px;">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+          </div>
+          <div style="font-size:19px; font-weight:700; color:var(--text); margin-bottom:6px;">Queue cleared</div>
+          <div style="font-size:14px; color:var(--text-3); max-width:330px; line-height:1.5;">Every draft has been handled. Nice work — head back to the inbox to keep an eye on incoming mail.</div>
+        </div>
+        </sc-if>
+      </div>
+      </sc-if>
+
+      <!-- ============ KNOWLEDGE BASE ============ -->
+      <sc-if value="{{ isKB }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; min-height:0; overflow:auto; padding:24px 32px 40px;">
+        <div style="max-width:1000px; margin:0 auto;">
+          <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:22px;">
+            <div>
+              <h1 style="margin:0 0 3px; font-size:21px; font-weight:700; letter-spacing:-0.015em; color:var(--text);">Knowledge Base</h1>
+              <div style="font-size:13.5px; color:var(--text-3);">What the AI draws from when it writes a reply</div>
+            </div>
+            <button style="cursor:pointer; border:1px solid var(--border); background:var(--surface); color:var(--text-2); font-family:var(--sans); font-size:13px; font-weight:600; padding:8px 14px; border-radius:9px;">+ Add answer</button>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px;">
+            <!-- canonical answers -->
+            <div style="grid-column:1 / -1; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow);">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+                <span style="width:30px; height:30px; border-radius:8px; background:var(--cat-shipping-bg); color:var(--cat-shipping-fg); display:flex; align-items:center; justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"></path></svg></span>
+                <div><div style="font-size:15.5px; font-weight:700; color:var(--text);">Canonical answers</div><div style="font-size:12.5px; color:var(--text-3);">The approved way to answer each request type</div></div>
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <sc-for list="{{ kbAnswers }}" as="a" hint-placeholder-count="4">
+                  <div style="border:1px solid var(--border); border-radius:11px; padding:13px 15px; background:var(--surface-3);">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:7px;">
+                      <span style="font-size:11px; font-weight:600; padding:2px 9px; border-radius:999px; background:{{ a.catBg }}; color:{{ a.catFg }};">{{ a.category }}</span>
+                      <span style="font-size:11.5px; color:var(--text-3); font-family:var(--mono);">{{ a.uses }}</span>
+                    </div>
+                    <div style="font-size:13.5px; font-weight:600; color:var(--text); margin-bottom:4px;">{{ a.title }}</div>
+                    <div style="font-size:13px; color:var(--text-2); line-height:1.5;">{{ a.body }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <!-- policies -->
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow);">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px;">
+                <span style="width:30px; height:30px; border-radius:8px; background:var(--cat-exchange-bg); color:var(--cat-exchange-fg); display:flex; align-items:center; justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path></svg></span>
+                <div><div style="font-size:15.5px; font-weight:700; color:var(--text);">Policies</div><div style="font-size:12.5px; color:var(--text-3);">Rules the AI must respect</div></div>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:11px;">
+                <sc-for list="{{ kbPolicies }}" as="p" hint-placeholder-count="4">
+                  <div style="display:flex; gap:11px; align-items:flex-start;">
+                    <span style="flex:none; width:6px; height:6px; border-radius:50%; background:var(--accent); margin-top:7px;"></span>
+                    <div><span style="font-size:14px; font-weight:600; color:var(--text);">{{ p.title }}</span> <span style="font-size:13.5px; color:var(--text-2); line-height:1.5;">— {{ p.body }}</span></div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <!-- tone profile -->
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow);">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px;">
+                <span style="width:30px; height:30px; border-radius:8px; background:var(--cat-sizing-bg); color:var(--cat-sizing-fg); display:flex; align-items:center; justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 0-8-8c0 1.5.4 2.5 1 3.5L4 20l4.5-1c1 .6 2 1 3.5 1Z"></path></svg></span>
+                <div><div style="font-size:15.5px; font-weight:700; color:var(--text);">Tone profile</div><div style="font-size:12.5px; color:var(--text-3);">How Molly &amp; Stitch sounds</div></div>
+              </div>
+              <p style="margin:0 0 13px; font-size:14px; line-height:1.6; color:var(--text-2);">Warm, unhurried, and genuinely helpful — like a favorite shop owner who remembers you. We lead with empathy, never sound robotic, and always make the next step effortless. First-person, light contractions, the occasional warm sign-off.</p>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <sc-for list="{{ toneTags }}" as="t" hint-placeholder-count="5"><span style="font-size:12.5px; font-weight:500; padding:4px 11px; border-radius:999px; background:{{ t.bg }}; color:{{ t.fg }};">{{ t.label }}</span></sc-for>
+              </div>
+              <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border-2); display:flex; gap:18px;">
+                <div style="flex:1;"><div style="font-size:11.5px; font-weight:600; color:var(--conf-high); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Do</div><div style="font-size:13px; color:var(--text-2); line-height:1.5;">Sign off “Warmly,” use the customer's name, offer the next step.</div></div>
+                <div style="flex:1;"><div style="font-size:11.5px; font-weight:600; color:var(--cat-exchange-fg); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Don't</div><div style="font-size:13px; color:var(--text-2); line-height:1.5;">Over-apologize, use “per our policy,” or promise dates we can't keep.</div></div>
+              </div>
+            </div>
+
+            <!-- example library -->
+            <div style="grid-column:1 / -1; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow);">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+                <span style="width:30px; height:30px; border-radius:8px; background:var(--cat-discount-bg); color:var(--cat-discount-fg); display:flex; align-items:center; justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"></path></svg></span>
+                <div style="flex:1;"><div style="font-size:15.5px; font-weight:700; color:var(--text);">Example library</div><div style="font-size:12.5px; color:var(--text-3);">Real question → answer pairs mined from past replies</div></div>
+                <span style="font-size:12px; color:var(--text-3); font-family:var(--mono);">142 pairs</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <sc-for list="{{ kbExamples }}" as="e" hint-placeholder-count="3">
+                  <div style="display:flex; gap:14px; align-items:flex-start; border:1px solid var(--border); border-radius:11px; padding:13px 15px;">
+                    <span style="flex:none; font-size:11px; font-weight:600; padding:2px 9px; border-radius:999px; background:{{ e.catBg }}; color:{{ e.catFg }}; margin-top:1px;">{{ e.category }}</span>
+                    <div style="flex:1; min-width:0;">
+                      <div style="font-size:13.5px; color:var(--text-2); margin-bottom:3px;"><span style="font-weight:600; color:var(--text-3);">Q:</span> {{ e.q }}</div>
+                      <div style="font-size:13.5px; color:var(--text);"><span style="font-weight:600; color:var(--accent-soft-fg);">A:</span> {{ e.a }}</div>
+                    </div>
+                    <div style="flex:none; display:flex; gap:6px;">
+                      <button style="cursor:pointer; width:30px; height:30px; border-radius:7px; border:1px solid var(--border); background:var(--surface); color:var(--text-3); display:flex; align-items:center; justify-content:center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ============ INSIGHTS ============ -->
+      <sc-if value="{{ isInsights }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; min-height:0; overflow:auto; padding:24px 32px 40px;">
+        <div style="max-width:1080px; margin:0 auto;">
+          <h1 style="margin:0 0 3px; font-size:21px; font-weight:700; letter-spacing:-0.015em; color:var(--text);">Insights</h1>
+          <div style="font-size:13.5px; color:var(--text-3); margin-bottom:22px;">Is the AI good enough to trust with more?</div>
+
+          <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:26px;">
+            <sc-for list="{{ insightCards }}" as="c" hint-placeholder-count="5">
+              <div style="background:var(--surface); border:1px solid var(--border); border-radius:13px; padding:16px 17px; box-shadow:var(--shadow);">
+                <span style="font-size:11px; font-weight:600; padding:2px 9px; border-radius:999px; background:{{ c.catBg }}; color:{{ c.catFg }};">{{ c.category }}</span>
+                <div style="display:flex; align-items:baseline; gap:5px; margin:13px 0 2px;"><span style="font-size:26px; font-weight:700; color:var(--text); font-family:var(--sans); letter-spacing:-0.02em;">{{ c.approval }}</span><span style="font-size:12.5px; color:var(--text-3);">approved</span></div>
+                <div style="font-size:12.5px; color:var(--text-3); margin-bottom:12px;">{{ c.volume }} drafts · {{ c.edit }} edited</div>
+                <div style="height:5px; border-radius:999px; background:var(--surface-2); overflow:hidden; margin-bottom:9px;"><div style="height:100%; width:{{ c.approval }}; background:var(--accent); border-radius:999px;"></div></div>
+                <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-3);"><span style="width:6px;height:6px;border-radius:50%;background:{{ c.confColor }};"></span>avg confidence {{ c.conf }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <!-- auto-send (disabled future) -->
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px 22px; margin-bottom:24px; box-shadow:var(--shadow);">
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:16px;">
+              <div>
+                <div style="font-size:15.5px; font-weight:700; color:var(--text); display:flex; align-items:center; gap:9px;">Per-category auto-send <span style="font-size:11px; font-weight:600; padding:2px 9px; border-radius:999px; background:var(--surface-2); border:1px solid var(--border); color:var(--text-3); text-transform:uppercase; letter-spacing:0.04em;">Coming soon</span></div>
+                <div style="font-size:13px; color:var(--text-3); margin-top:4px; max-width:560px; line-height:1.5;">A future capability. Once a category has earned your trust, you'll be able to let the AI send its drafts without review. Everything stays manual until you deliberately enable it.</div>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <sc-for list="{{ autoSend }}" as="a" hint-placeholder-count="5">
+                <div style="display:flex; align-items:center; gap:14px; padding:11px 2px; border-top:1px solid var(--border-2); opacity:.7;">
+                  <span style="font-size:11px; font-weight:600; padding:2px 9px; border-radius:999px; background:{{ a.catBg }}; color:{{ a.catFg }};">{{ a.category }}</span>
+                  <span style="font-size:13px; color:var(--text-3);">{{ a.note }}</span>
+                  <span style="margin-left:auto; width:38px; height:22px; border-radius:999px; background:var(--surface-2); border:1px solid var(--border); position:relative;"><span style="position:absolute; left:3px; top:2.5px; width:16px; height:16px; border-radius:50%; background:var(--text-3); opacity:.5;"></span></span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- audit log -->
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow);">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+              <div style="font-size:15.5px; font-weight:700; color:var(--text);">Audit log</div>
+              <div style="font-size:13px; color:var(--text-3);">Every email sent, on the record</div>
+              <div style="margin-left:auto; display:flex; align-items:center; gap:8px; height:32px; padding:0 11px; border-radius:8px; background:var(--surface-2); border:1px solid var(--border);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3-3"></path></svg>
+                <span style="font-size:12.5px; color:var(--text-3);">Search the log…</span>
+              </div>
+            </div>
+            <div>
+              <sc-for list="{{ auditLog }}" as="l" hint-placeholder-count="5">
+                <div style="display:flex; align-items:center; gap:14px; padding:11px 0; border-top:1px solid var(--border-2);">
+                  <span style="width:24px; height:24px; border-radius:50%; background:var(--accent-soft-bg); color:var(--accent-soft-fg); display:flex; align-items:center; justify-content:center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>
+                  <span style="font-family:var(--mono); font-size:12px; color:var(--text-3); width:96px;">{{ l.time }}</span>
+                  <span style="font-size:13.5px; color:var(--text); flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ l.summary }}</span>
+                  <span style="font-size:11px; font-weight:600; padding:2px 9px; border-radius:999px; background:{{ l.catBg }}; color:{{ l.catFg }};">{{ l.category }}</span>
+                  <span style="font-size:12px; color:var(--text-3); width:110px; text-align:right;">approved by {{ l.by }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ============ SETTINGS ============ -->
+      <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1; min-height:0; overflow:auto; padding:24px 32px 40px;">
+        <div style="max-width:860px; margin:0 auto;">
+          <h1 style="margin:0 0 3px; font-size:21px; font-weight:700; letter-spacing:-0.015em; color:var(--text);">Settings</h1>
+          <div style="font-size:13.5px; color:var(--text-3); margin-bottom:24px;">Connections, categories, and the triage gate</div>
+
+          <!-- connections -->
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px 22px; margin-bottom:18px; box-shadow:var(--shadow);">
+            <div style="font-size:15.5px; font-weight:700; color:var(--text); margin-bottom:15px;">Connections</div>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; border:1px solid var(--border); border-radius:12px;">
+                <div style="flex:none; width:40px; height:40px; border-radius:9px; background:var(--cat-exchange-bg); color:var(--cat-exchange-fg); display:flex; align-items:center; justify-content:center; font-weight:700;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m2 7 10 7L22 7"></path></svg></div>
+                <div style="flex:1;"><div style="font-size:14.5px; font-weight:600; color:var(--text);">Gmail — support@mollystitch.com</div><div style="font-size:12.5px; color:var(--text-3);">Reading inbox · last synced 2 min ago</div></div>
+                <span style="display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; color:var(--accent-soft-fg); background:var(--accent-soft-bg); padding:5px 11px; border-radius:999px;"><span style="width:7px;height:7px;border-radius:50%;background:currentColor;"></span>Connected</span>
+                <button style="cursor:pointer; font-family:var(--sans); font-size:13px; font-weight:500; padding:7px 13px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text-2);">Manage</button>
+              </div>
+              <div style="display:flex; align-items:center; gap:14px; padding:14px 16px; border:1px solid var(--border); border-radius:12px;">
+                <div style="flex:none; width:40px; height:40px; border-radius:9px; background:#E4F0E4; color:#5A8E2E; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px;">S</div>
+                <div style="flex:1;"><div style="font-size:14.5px; font-weight:600; color:var(--text);">Shopify — molly-stitch.myshopify.com</div><div style="font-size:12.5px; color:var(--text-3);">Orders, fulfillment &amp; customers · live</div></div>
+                <span style="display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; color:var(--accent-soft-fg); background:var(--accent-soft-bg); padding:5px 11px; border-radius:999px;"><span style="width:7px;height:7px;border-radius:50%;background:currentColor;"></span>Connected</span>
+                <button style="cursor:pointer; font-family:var(--sans); font-size:13px; font-weight:500; padding:7px 13px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text-2);">Manage</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- categories -->
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px 22px; margin-bottom:18px; box-shadow:var(--shadow);">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:15px;">
+              <div style="font-size:15.5px; font-weight:700; color:var(--text);">Request categories</div>
+              <button style="cursor:pointer; font-family:var(--sans); font-size:13px; font-weight:600; padding:7px 13px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text-2);">+ Add category</button>
+            </div>
+            <div style="display:flex; flex-direction:column;">
+              <sc-for list="{{ settingsCats }}" as="c" hint-placeholder-count="5">
+                <div style="display:flex; align-items:center; gap:13px; padding:12px 2px; border-top:1px solid var(--border-2);">
+                  <span style="width:11px; height:11px; border-radius:3px; background:{{ c.swatch }};"></span>
+                  <span style="font-size:14px; font-weight:600; color:var(--text); width:150px;">{{ c.category }}</span>
+                  <span style="font-size:13px; color:var(--text-3); flex:1;">{{ c.desc }}</span>
+                  <span style="font-family:var(--mono); font-size:12px; color:var(--text-3);">{{ c.vol }}/wk</span>
+                  <button style="cursor:pointer; width:30px; height:30px; border-radius:7px; border:1px solid var(--border); background:var(--surface); color:var(--text-3); display:flex; align-items:center; justify-content:center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- sender rules -->
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow);">
+            <div style="font-size:15.5px; font-weight:700; color:var(--text); margin-bottom:4px;">Sender rules</div>
+            <div style="font-size:13px; color:var(--text-3); margin-bottom:16px;">The triage gate — what gets treated as a real customer vs filtered out as noise.</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+              <div>
+                <div style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; color:var(--accent-soft-fg); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:10px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg> Always a customer</div>
+                <div style="display:flex; flex-direction:column; gap:7px;">
+                  <sc-for list="{{ allowRules }}" as="r" hint-placeholder-count="3"><div style="display:flex; align-items:center; gap:9px; padding:9px 12px; border:1px solid var(--border); border-radius:9px; font-family:var(--mono); font-size:12.5px; color:var(--text-2);">{{ r }}<button style="margin-left:auto; cursor:pointer; border:none; background:transparent; color:var(--text-3); font-size:15px; line-height:1;">×</button></div></sc-for>
+                </div>
+              </div>
+              <div>
+                <div style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:700; color:var(--cat-exchange-fg); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:10px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"></path></svg> Always filter out</div>
+                <div style="display:flex; flex-direction:column; gap:7px;">
+                  <sc-for list="{{ blockRules }}" as="r" hint-placeholder-count="3"><div style="display:flex; align-items:center; gap:9px; padding:9px 12px; border:1px solid var(--border); border-radius:9px; font-family:var(--mono); font-size:12.5px; color:var(--text-2);">{{ r }}<button style="margin-left:auto; cursor:pointer; border:none; background:transparent; color:var(--text-3); font-size:15px; line-height:1;">×</button></div></sc-for>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+    </div>
+  </div>
+
+  <!-- ============ APPROVE & SEND CONFIRM ============ -->
+  <sc-if value="{{ confirmOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed; inset:0; z-index:50; background:rgba(28,26,22,.42); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; animation:fadein .14s ease; padding:24px;">
+    <div style="width:440px; max-width:100%; background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:0 24px 60px rgba(20,18,14,.3); overflow:hidden; animation:popin .18s cubic-bezier(.2,.7,.3,1);">
+      <div style="padding:22px 24px 18px;">
+        <div style="display:flex; align-items:center; gap:11px; margin-bottom:14px;">
+          <div style="width:38px; height:38px; border-radius:10px; background:var(--accent); color:var(--accent-fg); display:flex; align-items:center; justify-content:center;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"></path><path d="M22 2 15 22l-4-9-9-4Z"></path></svg></div>
+          <div><div style="font-size:16.5px; font-weight:700; color:var(--text);">Send this reply?</div><div style="font-size:13px; color:var(--text-3);">This sends a real email — it can't be undone.</div></div>
+        </div>
+        <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:11px; padding:13px 15px;">
+          <div style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-3); margin-bottom:8px;"><span>To</span><span style="font-weight:600; color:var(--text-2); font-family:var(--mono);">{{ confirmEmail }}</span><span style="margin-left:auto; font-size:11px; font-weight:600; padding:2px 9px; border-radius:999px; background:{{ confirmCatBg }}; color:{{ confirmCatFg }};">{{ confirmCat }}</span></div>
+          <div style="font-size:13px; color:var(--text-2); line-height:1.55; max-height:74px; overflow:hidden;">{{ confirmPreview }}</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; padding:0 24px 22px;">
+        <button onClick="{{ cancelSend }}" style="flex:none; cursor:pointer; border:1px solid var(--border); background:var(--surface); color:var(--text-2); font-family:var(--sans); font-size:14px; font-weight:600; padding:11px 18px; border-radius:9px;">Cancel <span style="font-family:var(--mono); font-size:11px; color:var(--text-3); margin-left:4px;">esc</span></button>
+        <button onClick="{{ confirmSend }}" style="flex:1; cursor:pointer; border:none; background:var(--accent); color:var(--accent-fg); font-family:var(--sans); font-size:14.5px; font-weight:700; padding:11px 18px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center; gap:9px; box-shadow:inset 0 1px 0 rgba(255,255,255,.14);">Send now <span style="font-family:var(--mono); font-size:11px; opacity:.7; border-left:1px solid rgba(255,255,255,.3); padding-left:8px;">↵</span></button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ============ TOAST ============ -->
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed; left:50%; bottom:28px; z-index:60; display:flex; align-items:center; gap:11px; background:var(--text); color:var(--bg); padding:12px 18px; border-radius:11px; box-shadow:0 12px 30px rgba(20,18,14,.28); animation:toastin .22s cubic-bezier(.2,.7,.3,1); font-size:14px; font-weight:500;">
+    <span style="width:20px; height:20px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>
+    {{ toast }}
+  </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'inbox', theme: 'light', tab: 'customer', statusFilter: 'needs',
+    selectedId: 't1', draftIndex: 0, regenerating: false,
+    apprIndex: 0, confirmOpen: false, sendCtx: null, syncing: false, toast: '',
+    threads: this.seedThreads(),
+  };
+
+  // ---------- data ----------
+  seedThreads() {
+    return [
+      { id:'t1', name:'Sarah Chen', email:'sarah.chen@gmail.com', initials:'SC', avatar:'blue',
+        subject:'Wrong size — need to exchange the Stitch Cardigan', snippet:"Ordered a Medium but it's running large — can I swap for a Small? Still have the packaging.", category:'Exchange', status:'Needs Review',
+        confidence:'high', time:'9:14a', unread:true, earlier:1,
+        messages:[{ time:'Today, 9:14 AM', paras:[
+          "Hi! I ordered the Stitch Cardigan in Medium but it's running large on me — the shoulders sit really wide. Could I exchange it for a Small? I still have the original packaging and haven't worn it out.",
+          "Order is #MS-10472. Thanks so much! 💛 — Sarah"]}],
+        drafts:[
+          ["Hi Sarah,","Thank you so much for reaching out — and congratulations on the Stitch Cardigan! I'm sorry it's running large; the Medium does have a relaxed shoulder, so a Small should sit much closer to where you want it.","I'd be glad to set up the exchange. Since you still have the original packaging, just reply to confirm and I'll email you a prepaid return label. Drop the Medium at any carrier location, and the moment it's scanned we'll ship your Small — no need to wait for it to reach us first.","Your Small should be on its way within 1–2 business days. Happy to swap the color too if you'd like a change!","Warmly,\nMaya · Molly & Stitch Customer Care"],
+          ["Hi Sarah,","Thanks for writing in! Sorry the Medium is sitting wide on you — let's get you into a Small that fits the way it should.","I've noted the exchange on order #MS-10472. Reply to confirm and a prepaid label is on its way; once you've dropped the Medium off, your Small ships right out. No charge for the swap.","Warmly,\nMaya · Molly & Stitch Customer Care"]],
+        order:{ num:'#MS-10472', status:'Fulfilled', statusTone:'good', ordered:'May 28, 2026', shipLabel:'Delivered', shipValue:'Jun 3 · 1Z·999AA1', history:'3rd order · 1 prior exchange',
+          items:[{ name:'Stitch Cardigan', variant:'Oatmeal · Medium · Qty 1', price:'$98.00' }] },
+        suggested:{ text:'Create an exchange order for size Small against #MS-10472.', note:"Execute manually in Shopify — the console won't make this change." },
+        basedOn:[{ icon:'book', title:'Exchange policy', sub:'Knowledge base · 30-day window' },{ icon:'reply', title:'"Sizing exchange — cardigan"', sub:'Past reply · #MS-9981' }] },
+
+      { id:'t5', name:'Elena Rossi', email:'elena.rossi@gmail.com', initials:'ER', avatar:'clay',
+        subject:'My sweater arrived with a hole near the seam', snippet:'The Merino Crew came with a small hole near the shoulder seam — looks like a flaw.', category:'Exchange', status:'Needs Review',
+        confidence:'high', time:'8:46a', unread:true, earlier:0,
+        messages:[{ time:'Today, 8:46 AM', paras:[
+          "Hi there — I was so excited for the Merino Crew but it arrived with a small hole near the left shoulder seam. It looks like a manufacturing flaw rather than shipping damage.",
+          "I'd love a replacement if possible, or a refund is fine too. Order #MS-10456. Photos attached. Thank you!"]}],
+        drafts:[
+          ["Hi Elena,","Oh no — I'm so sorry the Merino Crew turned up with a flaw near the seam. That's absolutely not the standard we hold ourselves to, and thank you for the photos.","I'd love to make this right however works best for you: I can ship a brand-new replacement today at no cost, or process a full refund — just let me know which you'd prefer. Please keep the flawed piece; there's no need to send it back.","Either way, you'll have it sorted within the day.","Warmly,\nMaya · Molly & Stitch Customer Care"]],
+        order:{ num:'#MS-10456', status:'Delivered', statusTone:'good', ordered:'May 25, 2026', shipLabel:'Delivered', shipValue:'May 31', history:'2nd order · 0 prior issues',
+          items:[{ name:'Merino Crew', variant:'Slate · Large · Qty 1', price:'$120.00' }] },
+        suggested:{ text:'Refund $40 to order #MS-10456 — customer reports a damaged item (partial refund per damage policy), or issue a free replacement.', note:'Execute manually in Shopify — the console will not take this action.' },
+        basedOn:[{ icon:'book', title:'Damaged item policy', sub:'Knowledge base · replace or refund' },{ icon:'reply', title:'"Damaged on arrival — replacement"', sub:'Past reply · #MS-9740' }] },
+
+      { id:'t2', name:'Marcus Webb', email:'marcus.webb@outlook.com', initials:'MW', avatar:'green',
+        subject:'Where is my order? Tracking hasn\u2019t moved', snippet:"#MS-10518 has said shipped for four days but tracking hasn't updated. Is it lost?", category:'Shipping Status', status:'Needs Review',
+        confidence:'high', time:'8:20a', unread:true, earlier:0,
+        messages:[{ time:'Today, 8:20 AM', paras:[
+          "Hey, my order #MS-10518 has said \u201cshipped\u201d for four days but the tracking hasn't updated. Starting to worry it's lost — can you check?"]}],
+        drafts:[
+          ["Hi Marcus,","Thanks for the nudge, and sorry for the worry! I just checked #MS-10518 — good news, it's moving. The carrier had a scan gap over the weekend (common with their hub), but it's now out for delivery and should reach you tomorrow.","Here's your live tracking: 1Z·888BB2. If it hasn't arrived by end of day tomorrow, reply here and I'll overnight a replacement immediately — no questions asked.","Warmly,\nMaya · Molly & Stitch Customer Care"]],
+        order:{ num:'#MS-10518', status:'In transit', statusTone:'info', ordered:'Jun 14, 2026', shipLabel:'Tracking', shipValue:'1Z·888BB2 · last scan Jun 16', history:'5th order · loyal customer',
+          items:[{ name:'Wool Beanie', variant:'Charcoal · Qty 2', price:'$56.00' }] },
+        suggested:null,
+        basedOn:[{ icon:'book', title:'Shipping status template', sub:'Knowledge base · carrier delays' }] },
+
+      { id:'t3', name:'Priya Nair', email:'priya.nair@gmail.com', initials:'PN', avatar:'sizing',
+        subject:'Which size for the Linen Tee? Between S and M', snippet:"I'm 5'6\u201d, usually a small but like a relaxed fit — S or M in the Everyday Linen Tee?", category:'Sizing', status:'Needs Review',
+        confidence:'medium', time:'Yest', unread:false, earlier:0,
+        messages:[{ time:'Yesterday, 6:02 PM', paras:[
+          "Hi! I'm 5'6\u201d, usually a small but I like a relaxed fit. Trying to decide between S and M in the Everyday Linen Tee. Which would you recommend? I haven't ordered yet."]}],
+        drafts:[
+          ["Hi Priya,","Great question — the Everyday Linen Tee is designed with a relaxed, slightly boxy fit to begin with. Since you usually take a small and like room to move, I'd genuinely recommend staying with the Small; the Medium would read quite oversized on a 5'6\u201d frame.","If you want a true boyfriend look, the Medium is lovely knotted at the front. Either way, exchanges are free within 30 days, so there's no risk in trying.","Warmly,\nMaya · Molly & Stitch Customer Care"]],
+        order:null,
+        suggested:null,
+        basedOn:[{ icon:'book', title:'Linen Tee fit guide', sub:'Knowledge base · sizing chart' },{ icon:'reply', title:'"Relaxed fit recommendation"', sub:'Past reply · #MS-9120' }] },
+
+      { id:'t4', name:'Devon Brooks', email:'devon.b@gmail.com', initials:'DB', avatar:'discount',
+        subject:'Do you offer a student discount?', snippet:'Love your stuff! Any student discounts? Would love to grab the linen set for fall.', category:'Discount', status:'Needs Review',
+        confidence:'low', time:'Yest', unread:false, earlier:0,
+        messages:[{ time:'Yesterday, 3:31 PM', paras:[
+          "Hi! Love your stuff. Do you do any student discounts? Would love to grab the linen set for fall."]}],
+        drafts:[
+          ["Hi Devon,","Thank you — that means a lot! We don't run a dedicated student discount at the moment, but I don't want you to miss out: new subscribers get 10% off their first order, and our fall set often features in seasonal promos.","Want me to send the signup link, and flag you the moment the linen set goes on offer?","Warmly,\nMaya · Molly & Stitch Customer Care"]],
+        order:null,
+        suggested:null,
+        basedOn:[{ icon:'book', title:'Discount policy', sub:'Knowledge base · newsletter 10% only' }] },
+
+      { id:'t9', name:'Hannah Lee', email:'hannah.lee@gmail.com', initials:'HL', avatar:'other',
+        subject:'Return — changed my mind on the scarf', snippet:"I'd like to return the merino scarf from #MS-10502 — just changed my mind.", category:'Exchange', status:'Drafting',
+        confidence:null, time:'7:58a', unread:false, earlier:0,
+        messages:[{ time:'Today, 7:58 AM', paras:["Hi, I'd like to return the merino scarf from order #MS-10502 — just changed my mind. Is that possible?"]}],
+        drafts:[["Drafting…"]], order:null, suggested:null, basedOn:[] },
+
+      { id:'t6', name:'Tom Fisher', email:'tomfisher@me.com', initials:'TF', avatar:'other',
+        subject:'Just wanted to say I love the brand!', snippet:'No issue at all — the packaging and quality blew me away. Keep it up!', category:'Other', status:'New',
+        confidence:null, time:'7:40a', unread:false, earlier:0,
+        messages:[{ time:'Today, 7:40 AM', paras:["No issue at all — just wanted to say the packaging and quality blew me away. Keep it up! 🙌"]}],
+        drafts:[["(no draft yet)"]], order:null, suggested:null, basedOn:[] },
+
+      { id:'t7', name:'James Park', email:'james.park@gmail.com', initials:'JP', avatar:'green',
+        subject:'Tracking for #MS-10488', snippet:'Could you send the tracking number for my last order?', category:'Shipping Status', status:'Sent',
+        confidence:'high', time:'Mon', unread:false, earlier:1,
+        messages:[{ time:'Mon, 11:02 AM', paras:["Could you send the tracking number for my last order?"]}],
+        drafts:[["Hi James,","Of course — here's your tracking: 1Z·777CC9, arriving Wednesday. Thanks for your order!","Warmly,\nMaya"]], order:null, suggested:null, basedOn:[] },
+
+      { id:'t8', name:'Aisha Bello', email:'aisha.b@gmail.com', initials:'AB', avatar:'sizing',
+        subject:'Sizing on the wide-leg trousers', snippet:'Are the wide-leg trousers true to size?', category:'Sizing', status:'Sent',
+        confidence:'medium', time:'Mon', unread:false, earlier:0,
+        messages:[{ time:'Mon, 9:15 AM', paras:["Are the wide-leg trousers true to size?"]}],
+        drafts:[["Hi Aisha,","They run true to size with a generous leg — I'd take your usual. Free exchanges if it's not quite right!","Warmly,\nMaya"]], order:null, suggested:null, basedOn:[] },
+    ];
+  }
+
+  noise() {
+    return [
+      { initials:'TT', name:'TikTok Shop', email:'no-reply@tiktokshop.com', subject:'Your weekly TikTok Shop performance report is ready', rule:'Domain: tiktokshop.com', time:'6:30a' },
+      { initials:'Ma', name:'Meta Business', email:'advertise@facebookmail.com', subject:"Receipt for your ad campaign 'Spring Linen' — $214.80", rule:'Marketing receipt', time:'5:12a' },
+      { initials:'Kl', name:'Klaviyo', email:'product@klaviyo.com', subject:'Your email performance digest — open rate up 4%', rule:'Domain: klaviyo.com', time:'Yest' },
+      { initials:'St', name:'Stripe', email:'receipts@stripe.com', subject:'Invoice paid — Molly & Stitch monthly subscription', rule:'Vendor / billing', time:'Yest' },
+      { initials:'Ca', name:'Canva', email:'team@canva.com', subject:'Your team design "Fall Lookbook" was updated', rule:'Domain: canva.com', time:'Mon' },
+    ];
+  }
+
+  // ---------- meta maps ----------
+  catMeta(c){ const m={
+    'Exchange':{bg:'var(--cat-exchange-bg)',fg:'var(--cat-exchange-fg)',swatch:'var(--cat-exchange-fg)'},
+    'Shipping Status':{bg:'var(--cat-shipping-bg)',fg:'var(--cat-shipping-fg)',swatch:'var(--cat-shipping-fg)'},
+    'Sizing':{bg:'var(--cat-sizing-bg)',fg:'var(--cat-sizing-fg)',swatch:'var(--cat-sizing-fg)'},
+    'Discount':{bg:'var(--cat-discount-bg)',fg:'var(--cat-discount-fg)',swatch:'var(--cat-discount-fg)'},
+    'Other':{bg:'var(--cat-other-bg)',fg:'var(--cat-other-fg)',swatch:'var(--cat-other-fg)'} }; return m[c]||m['Other']; }
+  stMeta(s){ const m={
+    'New':{bg:'var(--st-new-bg)',fg:'var(--st-new-fg)',pulse:false},
+    'Drafting':{bg:'var(--st-drafting-bg)',fg:'var(--st-drafting-fg)',pulse:true},
+    'Needs Review':{bg:'var(--st-review-bg)',fg:'var(--st-review-fg)',pulse:false},
+    'Sent':{bg:'var(--st-sent-bg)',fg:'var(--st-sent-fg)',pulse:false},
+    'Dismissed':{bg:'var(--st-dismissed-bg)',fg:'var(--st-dismissed-fg)',pulse:false} }; return m[s]||m['New']; }
+  confMeta(c){ const m={ high:{label:'High',color:'var(--conf-high)',n:3}, medium:{label:'Medium',color:'var(--conf-med)',n:2}, low:{label:'Low',color:'var(--conf-low)',n:1} }; return c?m[c]:null; }
+  avatar(a){ const m={
+    blue:{bg:'var(--cat-shipping-bg)',fg:'var(--cat-shipping-fg)'}, clay:{bg:'var(--cat-exchange-bg)',fg:'var(--cat-exchange-fg)'},
+    green:{bg:'var(--accent-soft-bg)',fg:'var(--accent-soft-fg)'}, sizing:{bg:'var(--cat-sizing-bg)',fg:'var(--cat-sizing-fg)'},
+    discount:{bg:'var(--cat-discount-bg)',fg:'var(--cat-discount-fg)'}, other:{bg:'var(--cat-other-bg)',fg:'var(--cat-other-fg)'} }; return m[a]||m.other; }
+  icon(k){ const i={
+    inbox:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"></path></svg>',
+    approvals:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><path d="m9 11 3 3L22 4"></path></svg>',
+    kb:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"></path></svg>',
+    insights:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><rect x="7" y="11" width="3" height="6" rx="1"></rect><rect x="12" y="7" width="3" height="10" rx="1"></rect><rect x="17" y="13" width="3" height="4" rx="1"></rect></svg>',
+    settings:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path></svg>',
+    book:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"></path></svg>',
+    reply:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17 4 12l5-5"></path><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg>' }; return { __html: (i[k]||'') }; }
+
+  // ---------- lifecycle ----------
+  componentDidMount(){ this._kh = (e)=>this.onKey(e); window.addEventListener('keydown', this._kh); }
+  componentWillUnmount(){ window.removeEventListener('keydown', this._kh); }
+  isEditing(){ const a=document.activeElement; return a && (a.isContentEditable || /^(INPUT|TEXTAREA)$/.test(a.tagName)); }
+  onKey(e){
+    const s=this.state;
+    if(e.key==='Escape'){ if(s.confirmOpen) this.cancelSend(); else if(s.screen==='review') this.back(); return; }
+    if(s.confirmOpen && e.key==='Enter'){ e.preventDefault(); this.confirmSend(); return; }
+    if(this.isEditing()) return;
+    if(s.screen==='approvals'){
+      if(e.key==='j'){ this.apprNext(); } else if(e.key==='k'){ this.apprPrev(); }
+      else if(e.key==='a'){ this.askSend('approvals'); } else if(e.key==='d'){ this.dismissAppr(); }
+      else if(e.key==='e'){ this.openApprThread(); }
+    } else if(s.screen==='review'){
+      if(e.key==='a'){ this.askSend('review'); } else if(e.key==='d'){ this.dismissSel(); }
+      else if(e.key==='r'){ this.regenerate(); }
+    }
+  }
+
+  // ---------- handlers ----------
+  go(screen){ this.setState({ screen }); }
+  toggleDark(){ this.setState(s=>({ theme: s.theme==='light'?'dark':'light' })); }
+  setTab(tab){ this.setState({ tab }); }
+  setStatusFilter(f){ this.setState({ statusFilter:f }); }
+  openThread(id){ this.setState({ selectedId:id, screen:'review', draftIndex:0, regenerating:false }); }
+  back(){ this.setState({ screen:'inbox' }); }
+  sync(){ if(this.state.syncing) return; this.setState({ syncing:true }); setTimeout(()=>this.setState({ syncing:false }), 1700); }
+  regenerate(){ const t=this.threads().find(x=>x.id===this.state.selectedId); if(!t||t.drafts.length<2){ this.setState({ regenerating:true }); setTimeout(()=>this.setState({ regenerating:false }), 750); return; }
+    this.setState({ regenerating:true }); setTimeout(()=>this.setState(s=>({ regenerating:false, draftIndex:(s.draftIndex+1)%t.drafts.length })), 750); }
+  threads(){ return this.state.threads; }
+  askSend(ctx){ this.setState({ confirmOpen:true, sendCtx:ctx }); }
+  cancelSend(){ this.setState({ confirmOpen:false }); }
+  showToast(msg){ this.setState({ toast:msg }); clearTimeout(this._tt); this._tt=setTimeout(()=>this.setState({ toast:'' }), 2600); }
+  confirmSend(){
+    const s=this.state; const ctx=s.sendCtx;
+    const id = ctx==='approvals' ? (this.queue()[this.clampAppr()]||{}).id : s.selectedId;
+    const t = this.threads().find(x=>x.id===id);
+    const threads = this.threads().map(x=> x.id===id ? {...x, status:'Sent'} : x);
+    this.setState({ threads, confirmOpen:false });
+    this.showToast('Reply sent to '+(t?t.name:'customer'));
+    if(ctx==='review'){ setTimeout(()=>this.setState({ screen:'inbox' }), 220); }
+  }
+  dismiss(id){ const threads=this.threads().map(x=> x.id===id ? {...x, status:'Dismissed'} : x); this.setState({ threads }); }
+  dismissSel(){ this.dismiss(this.state.selectedId); this.showToast('Dismissed — removed from queue'); this.setState({ screen:'inbox' }); }
+  dismissAppr(){ const q=this.queue(); const cur=q[this.clampAppr()]; if(cur){ this.dismiss(cur.id); this.showToast('Dismissed — removed from queue'); } }
+  queue(){ return this.threads().filter(t=>t.status==='Needs Review'); }
+  clampAppr(){ const n=this.queue().length; if(n===0) return 0; return Math.min(this.state.apprIndex, n-1); }
+  apprNext(){ const n=this.queue().length; this.setState(s=>({ apprIndex: n? (s.apprIndex+1)%n : 0 })); }
+  apprPrev(){ const n=this.queue().length; this.setState(s=>({ apprIndex: n? (s.apprIndex-1+n)%n : 0 })); }
+  openApprThread(){ const cur=this.queue()[this.clampAppr()]; if(cur) this.openThread(cur.id); }
+
+  // ---------- render ----------
+  renderVals(){
+    const s=this.state; const screen=s.screen;
+    const threads=this.threads();
+    const dec=(t)=>{ const c=this.catMeta(t.category), st=this.stMeta(t.status), cf=this.confMeta(t.confidence), av=this.avatar(t.avatar);
+      return {...t, catBg:c.bg, catFg:c.fg, stBg:st.bg, stFg:st.fg, stPulse:st.pulse, avBg:av.bg, avFg:av.fg,
+        hasConf:!!cf, confLabel:cf?cf.label:'', confColor:cf?cf.color:'',
+        dots:[0,1,2].map(i=>({ color:(cf&&i<cf.n)?cf.color:'var(--dot-off)' })) }; };
+
+    const custCount=threads.filter(t=>t.status!=='Dismissed').length;
+    const needsCount=threads.filter(t=>t.status==='Needs Review').length;
+    const sentCount=threads.filter(t=>t.status==='Sent').length;
+    const noiseList=this.noise();
+
+    // inbox rows
+    let visible;
+    if(s.statusFilter==='needs') visible=threads.filter(t=>t.status==='Needs Review');
+    else if(s.statusFilter==='sent') visible=threads.filter(t=>t.status==='Sent');
+    else visible=threads.filter(t=>t.status!=='Dismissed');
+    const rows=visible.map(t=>{ const d=dec(t); return {...d,
+      open:()=>this.openThread(t.id),
+      nameWeight: t.unread?'700':'600',
+      rowBg: t.unread?'var(--surface)':'var(--surface)' }; });
+
+    const chip=(key,label,count)=>{ const on=s.statusFilter===key; return {
+      label, count: count||0, go:()=>this.setStatusFilter(key),
+      bg: on?(key==='needs'?'var(--accent)':'var(--text)'):'var(--surface)',
+      fg: on?'#fff':'var(--text-2)', bd: on?'transparent':'var(--border)', weight: on?'600':'500' }; };
+
+    // selected for review
+    const t=threads.find(x=>x.id===s.selectedId)||threads[0];
+    const sd=dec(t);
+    const di=Math.min(s.draftIndex, t.drafts.length-1);
+    const draftParas=t.drafts[di];
+    const sel={...sd,
+      hasEarlier: t.earlier>0, earlierCount: t.earlier+' message'+(t.earlier===1?'':'s'),
+      saveState: 'edited inline · autosaved',
+      hasOrder: !!t.order, noOrder: !t.order,
+      order: t.order ? {...t.order,
+        statusBg: t.order.statusTone==='good'?'var(--accent-soft-bg)':(t.order.statusTone==='info'?'var(--cat-shipping-bg)':'var(--warn-bg)'),
+        statusFg: t.order.statusTone==='good'?'var(--accent-soft-fg)':(t.order.statusTone==='info'?'var(--cat-shipping-fg)':'var(--warn-fg)') } : null,
+      suggested: t.suggested,
+      basedOn: t.basedOn.map(b=>({...b, icon:this.icon(b.icon),
+        iconBg: b.icon==='book'?'var(--cat-shipping-bg)':'var(--cat-exchange-bg)',
+        iconFg: b.icon==='book'?'var(--cat-shipping-fg)':'var(--cat-exchange-fg)' })) };
+
+    // approvals
+    const q=this.queue(); const ai=this.clampAppr(); const cur=q[ai]; const ad=cur?dec(cur):null;
+    const apprDraft = cur ? cur.drafts[0] : [];
+    const appr = ad ? {...ad, firstParas: cur.messages[0].paras, hasOrder:!!cur.order,
+      order: cur.order||{num:''}, orderLine: cur.order? (cur.order.items[0].name+' · '+cur.order.items[0].variant):'' } : {};
+
+    // confirm preview
+    let cThread, cDraft;
+    if(s.sendCtx==='approvals'){ cThread=cur; cDraft=cur?cur.drafts[0]:[]; }
+    else { cThread=t; cDraft=draftParas; }
+    const cMeta=cThread?this.catMeta(cThread.category):this.catMeta('Other');
+
+    // nav
+    const navItem=(key,label,icon,count)=>{ const on=screen===key||(key==='inbox'&&screen==='review'); return {
+      label, go:()=>this.go(key), icon:this.icon(icon),
+      bg: on?'var(--surface)':'transparent', fg: on?'var(--text)':'var(--text-2)',
+      count: count||0, countBg: on?'var(--accent-soft-bg)':'var(--surface)', countFg: on?'var(--accent-soft-fg)':'var(--text-3)' }; };
+
+    return {
+      theme:s.theme,
+      themeIcon: { __html: s.theme==='light'
+        ? '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path></svg>'
+        : '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>' },
+      syncLabel: s.syncing?'Syncing…':'Sync',
+      syncIcon: { __html: s.syncing
+        ? '<span style="width:14px;height:14px;border:2px solid var(--text-3);border-right-color:transparent;border-radius:50%;display:inline-block;animation:spin .7s linear infinite;"></span>'
+        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path><path d="M3 21v-5h5"></path></svg>' },
+
+      nav:[ navItem('inbox','Inbox','inbox',needsCount), navItem('approvals','Approvals','approvals',needsCount),
+            navItem('kb','Knowledge Base','kb',0), navItem('insights','Insights','insights',0), navItem('settings','Settings','settings',0) ],
+
+      isInbox: screen==='inbox', isReview: screen==='review', isApprovals: screen==='approvals',
+      isKB: screen==='kb', isInsights: screen==='insights', isSettings: screen==='settings',
+
+      // inbox
+      inboxSubtitle: needsCount+' need review · '+custCount+' customer threads today',
+      isSyncing: s.syncing,
+      isCustomerTab: s.tab==='customer', isNoiseTab: s.tab==='noise',
+      tabCustomer:()=>this.setTab('customer'), tabNoise:()=>this.setTab('noise'),
+      custCount, noiseCount: noiseList.length,
+      tabCustBg: s.tab==='customer'?'var(--surface)':'transparent', tabCustFg: s.tab==='customer'?'var(--text)':'var(--text-3)',
+      tabCustShadow: s.tab==='customer'?'var(--shadow)':'none',
+      tabCustCntBg: s.tab==='customer'?'var(--accent-soft-bg)':'var(--surface)', tabCustCntFg: s.tab==='customer'?'var(--accent-soft-fg)':'var(--text-3)',
+      tabNoiseBg: s.tab==='noise'?'var(--surface)':'transparent', tabNoiseFg: s.tab==='noise'?'var(--text)':'var(--text-3)',
+      tabNoiseShadow: s.tab==='noise'?'var(--shadow)':'none',
+      tabNoiseCntBg: s.tab==='noise'?'var(--cat-other-bg)':'var(--surface)', tabNoiseCntFg: 'var(--text-3)',
+      statusChips:[ chip('needs','Needs Review',needsCount), chip('all','All',0), chip('sent','Sent',sentCount) ],
+      rows, hasRows: rows.length>0, showCaughtUp: rows.length===0 && s.statusFilter==='needs',
+      noise: noiseList,
+
+      // review
+      sel, draftParas, regenerating: s.regenerating,
+      askSendReview:()=>this.askSend('review'), regenerate:()=>this.regenerate(), dismissSel:()=>this.dismissSel(), back:()=>this.back(),
+
+      // approvals
+      apprHasCurrent: !!cur, apprEmpty: !cur, appr, apprDraft,
+      apprProgress: cur? ('Reviewing '+(ai+1)+' of '+q.length) : 'All done',
+      apprDoneLabel: cur? (q.length+' left to review') : '',
+      apprPct: q.length? Math.round(((ai)/(q.length))*100)+'%' : '100%',
+      askSendAppr:()=>this.askSend('approvals'), dismissAppr:()=>this.dismissAppr(), apprNext:()=>this.apprNext(), openApprThread:()=>this.openApprThread(),
+
+      // confirm + toast
+      confirmOpen: s.confirmOpen, cancelSend:()=>this.cancelSend(), confirmSend:()=>this.confirmSend(),
+      confirmEmail: cThread?cThread.email:'', confirmCat: cThread?cThread.category:'',
+      confirmCatBg: cMeta.bg, confirmCatFg: cMeta.fg,
+      confirmPreview: cDraft.join('  '),
+      toast: s.toast, toggleDark:()=>this.toggleDark(), sync:()=>this.sync(),
+
+      // KB
+      kbAnswers:[
+        { category:'Exchange', uses:'used 84×', title:'Free size exchange', body:'Prepaid label, ship replacement on scan, 30-day window.', catBg:'var(--cat-exchange-bg)', catFg:'var(--cat-exchange-fg)' },
+        { category:'Shipping Status', uses:'used 61×', title:'Order location & delays', body:'Pull live tracking, reassure, offer overnight if stalled.', catBg:'var(--cat-shipping-bg)', catFg:'var(--cat-shipping-fg)' },
+        { category:'Sizing', uses:'used 47×', title:'Fit recommendation', body:'Reference fit guide, recommend a size, note free exchanges.', catBg:'var(--cat-sizing-bg)', catFg:'var(--cat-sizing-fg)' },
+        { category:'Discount', uses:'used 22×', title:'Discount availability', body:'Only newsletter 10% off first order; flag seasonal promos.', catBg:'var(--cat-discount-bg)', catFg:'var(--cat-discount-fg)' } ],
+      kbPolicies:[
+        { title:'Exchange window', body:'30 days from delivery, item unworn with packaging.' },
+        { title:'Damaged items', body:'Replace free or refund; customer keeps the flawed item.' },
+        { title:'Discounts', body:'Only the 10% newsletter offer. No student or stacking codes.' },
+        { title:'Refunds', body:'Recommend to the human — the console never issues refunds itself.' } ],
+      toneTags:[
+        { label:'Warm', bg:'var(--cat-exchange-bg)', fg:'var(--cat-exchange-fg)' },
+        { label:'Unhurried', bg:'var(--cat-sizing-bg)', fg:'var(--cat-sizing-fg)' },
+        { label:'First-person', bg:'var(--cat-shipping-bg)', fg:'var(--cat-shipping-fg)' },
+        { label:'Light contractions', bg:'var(--cat-discount-bg)', fg:'var(--cat-discount-fg)' },
+        { label:'“Warmly,” sign-off', bg:'var(--accent-soft-bg)', fg:'var(--accent-soft-fg)' } ],
+      kbExamples:[
+        { category:'Exchange', q:'Ordered M, too big — swap for S?', a:"Of course! Prepaid label on its way; your Small ships the moment the return scans.", catBg:'var(--cat-exchange-bg)', catFg:'var(--cat-exchange-fg)' },
+        { category:'Shipping Status', q:"Tracking hasn't moved in days.", a:'Checked it — carrier scan gap, out for delivery tomorrow; I\u2019ll overnight a replacement if it slips.', catBg:'var(--cat-shipping-bg)', catFg:'var(--cat-shipping-fg)' },
+        { category:'Sizing', q:'Between S and M, relaxed fit?', a:'Stay with your usual Small — the cut is already relaxed; free exchanges if not.', catBg:'var(--cat-sizing-bg)', catFg:'var(--cat-sizing-fg)' } ],
+
+      // Insights
+      insightCards:[
+        { category:'Exchange', approval:'94%', volume:84, edit:'11%', conf:'High', confColor:'var(--conf-high)', catBg:'var(--cat-exchange-bg)', catFg:'var(--cat-exchange-fg)' },
+        { category:'Shipping', approval:'97%', volume:61, edit:'6%', conf:'High', confColor:'var(--conf-high)', catBg:'var(--cat-shipping-bg)', catFg:'var(--cat-shipping-fg)' },
+        { category:'Sizing', approval:'82%', volume:47, edit:'24%', conf:'Med', confColor:'var(--conf-med)', catBg:'var(--cat-sizing-bg)', catFg:'var(--cat-sizing-fg)' },
+        { category:'Discount', approval:'68%', volume:22, edit:'38%', conf:'Low', confColor:'var(--conf-low)', catBg:'var(--cat-discount-bg)', catFg:'var(--cat-discount-fg)' },
+        { category:'Other', approval:'90%', volume:18, edit:'9%', conf:'High', confColor:'var(--conf-high)', catBg:'var(--cat-other-bg)', catFg:'var(--cat-other-fg)' } ],
+      autoSend:[
+        { category:'Exchange', note:'94% approval — close, but keep reviewing for now', catBg:'var(--cat-exchange-bg)', catFg:'var(--cat-exchange-fg)' },
+        { category:'Shipping Status', note:'97% approval — the strongest candidate', catBg:'var(--cat-shipping-bg)', catFg:'var(--cat-shipping-fg)' },
+        { category:'Sizing', note:'82% approval — too much editing to automate', catBg:'var(--cat-sizing-bg)', catFg:'var(--cat-sizing-fg)' },
+        { category:'Discount', note:'68% approval — needs human judgment', catBg:'var(--cat-discount-bg)', catFg:'var(--cat-discount-fg)' },
+        { category:'Other', note:'Always human-reviewed', catBg:'var(--cat-other-bg)', catFg:'var(--cat-other-fg)' } ],
+      auditLog:[
+        { time:'Today 9:31a', summary:'Tracking details sent to James Park · #MS-10488', category:'Shipping Status', by:'Maya', catBg:'var(--cat-shipping-bg)', catFg:'var(--cat-shipping-fg)' },
+        { time:'Today 9:18a', summary:'Sizing recommendation sent to Aisha Bello', category:'Sizing', by:'Maya', catBg:'var(--cat-sizing-bg)', catFg:'var(--cat-sizing-fg)' },
+        { time:'Yest 4:52p', summary:'Exchange confirmed for Leo Martins · #MS-10440', category:'Exchange', by:'Maya', catBg:'var(--cat-exchange-bg)', catFg:'var(--cat-exchange-fg)' },
+        { time:'Yest 2:09p', summary:'Replacement arranged for Nina Cole · #MS-10399', category:'Exchange', by:'Maya', catBg:'var(--cat-exchange-bg)', catFg:'var(--cat-exchange-fg)' },
+        { time:'Yest 11:40a', summary:'Discount info sent to Priya Raman', category:'Discount', by:'Maya', catBg:'var(--cat-discount-bg)', catFg:'var(--cat-discount-fg)' } ],
+
+      // Settings
+      settingsCats:[
+        { category:'Exchange', desc:'Returns, swaps, wrong/damaged items', vol:'~18', swatch:'var(--cat-exchange-fg)' },
+        { category:'Shipping Status', desc:'Where is my order, tracking, delays', vol:'~14', swatch:'var(--cat-shipping-fg)' },
+        { category:'Sizing', desc:'Fit questions, size recommendations', vol:'~11', swatch:'var(--cat-sizing-fg)' },
+        { category:'Discount', desc:'Promo codes, sales, discount requests', vol:'~6', swatch:'var(--cat-discount-fg)' },
+        { category:'Other', desc:'Compliments, wholesale, everything else', vol:'~5', swatch:'var(--cat-other-fg)' } ],
+      allowRules:['*@gmail.com','*@outlook.com','*@icloud.com','known-customer list (412)'],
+      blockRules:['*@tiktokshop.com','*@klaviyo.com','*@facebookmail.com','receipts@stripe.com'],
+    };
+  }
+}
+</script>
+</body>
+</html>

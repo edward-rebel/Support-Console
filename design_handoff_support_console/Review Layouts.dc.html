@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Source Sans 3', system-ui, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: #d8d4cd; border-radius: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+</style>
+</helmet>
+
+<div style="width:max-content; min-width:100%; min-height:100vh; box-sizing:border-box; padding:48px; background:#E7E5DF;">
+
+  <!-- intro -->
+  <div style="max-width:880px; margin-bottom:40px; font-family:'Source Sans 3',sans-serif;">
+    <div class="mono" style="font-size:12px; letter-spacing:0.08em; text-transform:uppercase; color:#8c8880; margin-bottom:14px;">Molly &amp; Stitch · Support Console — design exploration</div>
+    <h1 style="margin:0 0 14px; font-size:30px; font-weight:700; letter-spacing:-0.015em; color:#23211E;">Thread / Draft Review — 3 layout directions</h1>
+    <p style="margin:0 0 10px; font-size:16px; line-height:1.6; color:#56524c; max-width:760px;">This is the heart of the app — where you read a customer's message, read the AI's draft alongside their order, and decide in seconds whether to send. Each direction holds the same three things together differently: <strong style="color:#36332e;">the conversation</strong>, <strong style="color:#36332e;">the editable draft</strong>, and <strong style="color:#36332e;">the context you need to trust it</strong>. Same content, same system, three ergonomics.</p>
+    <p style="margin:0; font-size:14px; line-height:1.6; color:#8c8880;">System: Source Sans 3 + IBM Plex Mono for IDs/data · forest-green accent <span class="mono">#2F5D50</span> reserved for the send action · warm-neutral chrome so the content leads. Pick a direction (or mix) and I'll build the full navigable app around it.</p>
+  </div>
+
+  <!-- frames row -->
+  <div style="display:flex; gap:48px; align-items:flex-start;">
+
+    <!-- ============ FRAME A ============ -->
+    <div style="flex:none; width:1180px;">
+      <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:14px;">
+        <span class="mono" style="font-size:12px; font-weight:500; color:#2F5D50; background:#fff; border:1px solid #d8d4cd; padding:3px 9px; border-radius:999px;">A</span>
+        <span style="font-size:15px; font-weight:600; color:#36332e;">In-thread reply</span>
+        <span style="font-size:14px; color:#8c8880;">— customer message and draft stacked vertically, context on a right rail. Natural top-to-bottom reading.</span>
+      </div>
+      <div style="background:#fff; border-radius:2px; box-shadow:0 1px 3px rgba(0,0,0,.08); overflow:hidden;">
+        <!-- header -->
+        <div style="height:60px; display:flex; align-items:center; gap:14px; padding:0 20px; border-bottom:1px solid #ECE9E4; background:#FBFAF8;">
+          <div style="width:30px; height:30px; border-radius:6px; border:1px solid #E2DED7; display:flex; align-items:center; justify-content:center; color:#6B6862; font-size:16px;">←</div>
+          <span style="font-size:11px; font-weight:600; letter-spacing:0.03em; color:#8A4B26; background:#F3E8DF; padding:3px 9px; border-radius:999px;">EXCHANGE</span>
+          <div style="font-size:15px; font-weight:600; color:#23211E;">Wrong size — need to exchange the Stitch Cardigan</div>
+          <div style="margin-left:auto; display:flex; align-items:center; gap:7px;">
+            <span style="font-size:12.5px; color:#8c8880;">Draft confidence</span>
+            <span style="display:inline-flex; gap:3px; align-items:center;"><i style="width:6px;height:6px;border-radius:50%;background:#2F5D50;display:inline-block;"></i><i style="width:6px;height:6px;border-radius:50%;background:#2F5D50;display:inline-block;"></i><i style="width:6px;height:6px;border-radius:50%;background:#2F5D50;display:inline-block;"></i></span>
+            <span style="font-size:12.5px; font-weight:600; color:#2F5D50;">High</span>
+          </div>
+        </div>
+        <!-- body -->
+        <div style="display:flex; height:760px;">
+          <!-- left: thread + composer -->
+          <div style="flex:1.55; display:flex; flex-direction:column; border-right:1px solid #ECE9E4; min-width:0;">
+            <div style="flex:1; overflow:auto; padding:22px 26px;">
+              <!-- collapsed earlier -->
+              <div style="text-align:center; margin-bottom:18px;"><span style="font-size:12.5px; color:#a39e96; background:#F4F2EE; padding:4px 12px; border-radius:999px;">Earlier in conversation · 1 message</span></div>
+              <!-- customer latest message -->
+              <div style="display:flex; gap:13px;">
+                <div style="flex:none; width:38px; height:38px; border-radius:50%; background:#E4ECF4; color:#2C5680; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:14px;">SC</div>
+                <div style="flex:1; min-width:0;">
+                  <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:2px;">
+                    <span style="font-weight:600; font-size:15px; color:#23211E;">Sarah Chen</span>
+                    <span class="mono" style="font-size:12px; color:#a39e96;">sarah.chen@gmail.com</span>
+                    <span style="margin-left:auto; font-size:12.5px; color:#a39e96;">Today, 9:14 AM</span>
+                  </div>
+                  <div style="font-size:15.5px; line-height:1.65; color:#36332e;">
+                    <p style="margin:0 0 12px;">Hi! I ordered the Stitch Cardigan in Medium but it's running large on me — the shoulders sit really wide. Could I exchange it for a Small? I still have the original packaging and haven't worn it out.</p>
+                    <p style="margin:0;">Order is <span class="mono" style="font-size:14px;">#MS-10472</span>. Thanks so much! 💛<br>— Sarah</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- composer -->
+            <div style="border-top:1px solid #ECE9E4; background:#FBFAF8; padding:16px 26px 0;">
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:11px;">
+                <span style="width:20px;height:20px;border-radius:5px;background:#2F5D50;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">✦</span>
+                <span style="font-size:13px; font-weight:600; color:#36332e;">AI draft</span>
+                <span style="font-size:12.5px; color:#a39e96;">· reply to Sarah Chen</span>
+                <span style="margin-left:auto; font-size:12px; color:#a39e96; display:inline-flex; align-items:center; gap:5px;">edited inline <span style="width:5px;height:5px;border-radius:50%;background:#cfcabf;"></span> autosaved</span>
+              </div>
+              <div contenteditable="true" style="background:#fff; border:1px solid #E2DED7; border-radius:8px; padding:16px 18px; font-size:14.5px; line-height:1.6; color:#36332e; max-height:228px; overflow:auto; outline:none;">
+                <p style="margin:0 0 11px;">Hi Sarah,</p>
+                <p style="margin:0 0 11px;">Thank you so much for reaching out — and congratulations on the Stitch Cardigan! I'm sorry it's running large; the Medium does have a relaxed shoulder, so a Small should sit much closer to where you want it.</p>
+                <p style="margin:0 0 11px;">I'd be glad to set up the exchange. Since you still have the original packaging, here's all you need to do:</p>
+                <p style="margin:0 0 11px;">1. Just reply to confirm and I'll email you a prepaid return label.<br>2. Pop the Medium back in its packaging and drop it at any carrier location.<br>3. The moment it's scanned, we'll ship your Small — no need to wait for it to reach us first.</p>
+                <p style="margin:0 0 11px;">Your Small should be on its way within 1–2 business days. Happy to swap the color too if you'd like a change!</p>
+                <p style="margin:0;">Warmly,<br>Maya · Molly &amp; Stitch Customer Care</p>
+              </div>
+              <!-- action bar -->
+              <div style="display:flex; align-items:center; gap:10px; padding:15px 0;">
+                <button style="border:none; cursor:pointer; background:#2F5D50; color:#fff; font-family:inherit; font-size:14.5px; font-weight:600; padding:11px 20px; border-radius:8px; display:inline-flex; align-items:center; gap:9px; box-shadow:0 1px 2px rgba(47,93,80,.35), inset 0 1px 0 rgba(255,255,255,.12);">Approve &amp; Send <span style="opacity:.6; font-weight:500;">↵</span></button>
+                <button style="border:1px solid #E2DED7; cursor:pointer; background:#fff; color:#46433e; font-family:inherit; font-size:14px; font-weight:500; padding:10px 15px; border-radius:8px;">Edit</button>
+                <button style="border:1px solid #E2DED7; cursor:pointer; background:#fff; color:#46433e; font-family:inherit; font-size:14px; font-weight:500; padding:10px 15px; border-radius:8px; display:inline-flex; align-items:center; gap:7px;">↻ Regenerate</button>
+                <button style="margin-left:auto; border:none; cursor:pointer; background:transparent; color:#9a968f; font-family:inherit; font-size:14px; font-weight:500; padding:10px 12px; border-radius:8px;">Dismiss · not a request</button>
+              </div>
+            </div>
+          </div>
+          <!-- right: context rail -->
+          <div style="flex:none; width:392px; overflow:auto; padding:22px 22px; background:#FBFAF8;">
+            <div class="mono" style="font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#a39e96; margin-bottom:12px;">Context</div>
+            <!-- order card -->
+            <div style="background:#fff; border:1px solid #E8E5E0; border-radius:10px; overflow:hidden; margin-bottom:16px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 15px; border-bottom:1px solid #F0EDE8;">
+                <div style="display:flex; align-items:center; gap:8px;"><span style="width:22px;height:22px;border-radius:5px;background:#23211E;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">S</span><span class="mono" style="font-size:14px; font-weight:500; color:#23211E;">#MS-10472</span></div>
+                <span style="font-size:11.5px; font-weight:600; color:#2C7A52; background:#E4F0E8; padding:3px 9px; border-radius:999px;">Fulfilled</span>
+              </div>
+              <div style="padding:13px 15px; border-bottom:1px solid #F0EDE8;">
+                <div style="display:flex; gap:11px;">
+                  <div style="flex:none; width:48px; height:48px; border-radius:7px; background:repeating-linear-gradient(135deg,#EFE9E0,#EFE9E0 5px,#E7E0D5 5px,#E7E0D5 10px); border:1px solid #E2DED7;"></div>
+                  <div style="flex:1; min-width:0;">
+                    <div style="font-size:14px; font-weight:600; color:#36332e;">Stitch Cardigan</div>
+                    <div style="font-size:12.5px; color:#8c8880;">Oatmeal · Medium · Qty 1</div>
+                    <div class="mono" style="font-size:12.5px; color:#6B6862; margin-top:2px;">$98.00</div>
+                  </div>
+                </div>
+              </div>
+              <div style="padding:11px 15px; display:flex; flex-direction:column; gap:7px;">
+                <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:#8c8880;">Ordered</span><span style="color:#46433e;">May 28, 2026</span></div>
+                <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:#8c8880;">Delivered</span><span style="color:#46433e;">Jun 3 · <span class="mono">1Z·999AA1</span></span></div>
+                <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:#8c8880;">Customer</span><span style="color:#46433e;">3rd order · 1 prior exchange</span></div>
+              </div>
+            </div>
+            <!-- recommended action -->
+            <div style="background:#FBF4E9; border:1px solid #EAD9B8; border-radius:10px; padding:14px 15px; margin-bottom:16px;">
+              <div style="display:flex; align-items:center; gap:7px; margin-bottom:7px;"><span style="font-size:13px;">⚑</span><span style="font-size:12px; font-weight:700; letter-spacing:0.03em; color:#8A6A2A; text-transform:uppercase;">Suggested action</span></div>
+              <div style="font-size:14px; line-height:1.55; color:#5c4d2e;">Create an exchange order for size <strong>Small</strong> against <span class="mono" style="font-size:13px;">#MS-10472</span>.</div>
+              <div style="font-size:12.5px; color:#9a8a63; margin-top:6px; font-style:italic;">Execute manually in Shopify — the console won't make this change.</div>
+            </div>
+            <!-- based on -->
+            <div>
+              <div class="mono" style="font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#a39e96; margin-bottom:9px;">Draft based on</div>
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; gap:9px; align-items:flex-start; background:#fff; border:1px solid #E8E5E0; border-radius:8px; padding:10px 12px;"><span style="font-size:13px; margin-top:1px;">📘</span><div><div style="font-size:13.5px; font-weight:600; color:#36332e;">Exchange policy</div><div style="font-size:12px; color:#8c8880;">Knowledge base · 30-day window</div></div></div>
+                <div style="display:flex; gap:9px; align-items:flex-start; background:#fff; border:1px solid #E8E5E0; border-radius:8px; padding:10px 12px;"><span style="font-size:13px; margin-top:1px;">↩</span><div><div style="font-size:13.5px; font-weight:600; color:#36332e;">"Sizing exchange — cardigan"</div><div style="font-size:12px; color:#8c8880;">Past reply · <span class="mono">#MS-9981</span></div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ FRAME B ============ -->
+    <div style="flex:none; width:1240px;">
+      <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:14px;">
+        <span class="mono" style="font-size:12px; font-weight:500; color:#2F5D50; background:#fff; border:1px solid #d8d4cd; padding:3px 9px; border-radius:999px;">B</span>
+        <span style="font-size:15px; font-weight:600; color:#36332e;">Side-by-side decision</span>
+        <span style="font-size:14px; color:#8c8880;">— their message and your reply face each other; context runs as a strip below. Built for fast comparison.</span>
+      </div>
+      <div style="background:#fff; border-radius:2px; box-shadow:0 1px 3px rgba(0,0,0,.08); overflow:hidden;">
+        <!-- header -->
+        <div style="height:60px; display:flex; align-items:center; gap:14px; padding:0 20px; border-bottom:1px solid #ECE9E4; background:#FBFAF8;">
+          <div style="width:30px; height:30px; border-radius:6px; border:1px solid #E2DED7; display:flex; align-items:center; justify-content:center; color:#6B6862; font-size:16px;">←</div>
+          <span style="font-size:11px; font-weight:600; letter-spacing:0.03em; color:#8A4B26; background:#F3E8DF; padding:3px 9px; border-radius:999px;">EXCHANGE</span>
+          <div style="font-size:15px; font-weight:600; color:#23211E;">Wrong size — need to exchange the Stitch Cardigan</div>
+          <span style="font-size:12.5px; color:#a39e96;">· Sarah Chen</span>
+          <div style="margin-left:auto; display:flex; align-items:center; gap:7px;">
+            <span style="font-size:12.5px; color:#8c8880;">Confidence</span>
+            <span style="display:inline-flex; gap:3px; align-items:center;"><i style="width:6px;height:6px;border-radius:50%;background:#2F5D50;display:inline-block;"></i><i style="width:6px;height:6px;border-radius:50%;background:#2F5D50;display:inline-block;"></i><i style="width:6px;height:6px;border-radius:50%;background:#2F5D50;display:inline-block;"></i></span>
+            <span style="font-size:12.5px; font-weight:600; color:#2F5D50;">High</span>
+          </div>
+        </div>
+        <!-- two columns -->
+        <div style="display:flex; height:560px; border-bottom:1px solid #ECE9E4;">
+          <!-- their message -->
+          <div style="flex:1; display:flex; flex-direction:column; border-right:1px solid #ECE9E4; min-width:0;">
+            <div style="padding:13px 24px; display:flex; align-items:center; gap:9px; border-bottom:1px solid #F0EDE8;">
+              <div style="flex:none; width:30px; height:30px; border-radius:50%; background:#E4ECF4; color:#2C5680; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:12px;">SC</div>
+              <div><div style="font-size:13.5px; font-weight:600; color:#23211E;">Sarah Chen</div><div style="font-size:12px; color:#a39e96;">wrote · Today 9:14 AM</div></div>
+            </div>
+            <div style="flex:1; overflow:auto; padding:22px 24px; font-size:16px; line-height:1.7; color:#36332e;">
+              <p style="margin:0 0 14px;">Hi! I ordered the Stitch Cardigan in Medium but it's running large on me — the shoulders sit really wide. Could I exchange it for a Small? I still have the original packaging and haven't worn it out.</p>
+              <p style="margin:0;">Order is <span class="mono" style="font-size:14.5px;">#MS-10472</span>. Thanks so much! 💛<br>— Sarah</p>
+              <div style="margin-top:20px; padding-top:16px; border-top:1px dashed #E2DED7;"><span style="font-size:12.5px; color:#a39e96;">↑ 1 earlier message in this thread</span></div>
+            </div>
+          </div>
+          <!-- your reply -->
+          <div style="flex:1; display:flex; flex-direction:column; background:#FBFAF8; min-width:0;">
+            <div style="padding:13px 24px; display:flex; align-items:center; gap:9px; border-bottom:1px solid #F0EDE8;">
+              <span style="width:24px;height:24px;border-radius:6px;background:#2F5D50;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">✦</span>
+              <div style="font-size:13.5px; font-weight:600; color:#23211E;">Your reply <span style="font-weight:400; color:#a39e96;">· AI draft, editable</span></div>
+              <button style="margin-left:auto; border:1px solid #E2DED7; cursor:pointer; background:#fff; color:#46433e; font-family:inherit; font-size:12.5px; font-weight:500; padding:5px 11px; border-radius:7px; display:inline-flex; gap:6px; align-items:center;">↻ Regenerate</button>
+            </div>
+            <div contenteditable="true" style="flex:1; overflow:auto; padding:22px 24px; font-size:15px; line-height:1.65; color:#36332e; outline:none;">
+              <p style="margin:0 0 12px;">Hi Sarah,</p>
+              <p style="margin:0 0 12px;">Thank you so much for reaching out — and congratulations on the Stitch Cardigan! I'm sorry it's running large; the Medium does have a relaxed shoulder, so a Small should sit much closer to where you want it.</p>
+              <p style="margin:0 0 12px;">I'd be glad to set up the exchange. Since you still have the original packaging, just reply to confirm and I'll email you a prepaid return label. Drop the Medium at any carrier location, and the moment it's scanned we'll ship your Small — no need to wait for it to reach us first.</p>
+              <p style="margin:0 0 12px;">Your Small should be on its way within 1–2 business days. Happy to swap the color too if you'd like a change!</p>
+              <p style="margin:0;">Warmly,<br>Maya · Molly &amp; Stitch Customer Care</p>
+            </div>
+          </div>
+        </div>
+        <!-- context strip -->
+        <div style="display:flex; gap:0; height:140px; border-bottom:1px solid #ECE9E4;">
+          <div style="flex:1.3; padding:13px 20px; border-right:1px solid #ECE9E4; overflow:hidden;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:9px;"><span class="mono" style="font-size:14px; font-weight:500; color:#23211E;">#MS-10472</span><span style="font-size:11px; font-weight:600; color:#2C7A52; background:#E4F0E8; padding:2px 8px; border-radius:999px;">Fulfilled</span><span style="font-size:12px; color:#a39e96; margin-left:auto;">3rd order · 1 prior exchange</span></div>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <div style="flex:none; width:40px; height:40px; border-radius:6px; background:repeating-linear-gradient(135deg,#EFE9E0,#EFE9E0 5px,#E7E0D5 5px,#E7E0D5 10px); border:1px solid #E2DED7;"></div>
+              <div style="font-size:13px; color:#46433e;"><div style="font-weight:600;">Stitch Cardigan · Oatmeal · Medium</div><div style="color:#8c8880;">Qty 1 · <span class="mono">$98.00</span> · ordered May 28 · delivered Jun 3</div></div>
+            </div>
+          </div>
+          <div style="flex:1; padding:13px 20px; border-right:1px solid #ECE9E4; background:#FBF4E9;">
+            <div style="display:flex; align-items:center; gap:7px; margin-bottom:6px;"><span style="font-size:12px;">⚑</span><span style="font-size:11px; font-weight:700; letter-spacing:0.03em; color:#8A6A2A; text-transform:uppercase;">Suggested action</span></div>
+            <div style="font-size:13px; line-height:1.5; color:#5c4d2e;">Create an exchange order for size <strong>Small</strong> against <span class="mono" style="font-size:12px;">#MS-10472</span>.</div>
+            <div style="font-size:11.5px; color:#9a8a63; margin-top:4px; font-style:italic;">Execute manually in Shopify.</div>
+          </div>
+          <div style="flex:1; padding:13px 20px; overflow:hidden;">
+            <div class="mono" style="font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:#a39e96; margin-bottom:8px;">Based on</div>
+            <div style="display:flex; flex-direction:column; gap:6px; font-size:12.5px; color:#46433e;">
+              <div style="display:flex; gap:7px; align-items:center;"><span>📘</span> Exchange policy <span style="color:#a39e96;">· KB</span></div>
+              <div style="display:flex; gap:7px; align-items:center;"><span>↩</span> "Sizing exchange — cardigan" <span class="mono" style="color:#a39e96;">#MS-9981</span></div>
+            </div>
+          </div>
+        </div>
+        <!-- action bar -->
+        <div style="height:68px; display:flex; align-items:center; gap:10px; padding:0 24px; background:#FBFAF8;">
+          <button style="border:none; cursor:pointer; background:#2F5D50; color:#fff; font-family:inherit; font-size:14.5px; font-weight:600; padding:11px 22px; border-radius:8px; display:inline-flex; align-items:center; gap:9px; box-shadow:0 1px 2px rgba(47,93,80,.35), inset 0 1px 0 rgba(255,255,255,.12);">Approve &amp; Send <span style="opacity:.6; font-weight:500;">↵</span></button>
+          <button style="border:1px solid #E2DED7; cursor:pointer; background:#fff; color:#46433e; font-family:inherit; font-size:14px; font-weight:500; padding:10px 16px; border-radius:8px;">Edit draft</button>
+          <button style="margin-left:auto; border:none; cursor:pointer; background:transparent; color:#9a968f; font-family:inherit; font-size:14px; font-weight:500; padding:10px 12px; border-radius:8px;">Dismiss · not a request</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ FRAME C ============ -->
+    <div style="flex:none; width:1180px;">
+      <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:14px;">
+        <span class="mono" style="font-size:12px; font-weight:500; color:#2F5D50; background:#fff; border:1px solid #d8d4cd; padding:3px 9px; border-radius:999px;">C</span>
+        <span style="font-size:15px; font-weight:600; color:#36332e;">Calm reading column</span>
+        <span style="font-size:14px; color:#8c8880;">— one centered reading flow, rich context rail, floating send bar. Spacious and unhurried.</span>
+      </div>
+      <div style="background:#fff; border-radius:2px; box-shadow:0 1px 3px rgba(0,0,0,.08); overflow:hidden; position:relative;">
+        <!-- header -->
+        <div style="height:60px; display:flex; align-items:center; gap:14px; padding:0 22px; border-bottom:1px solid #ECE9E4;">
+          <div style="width:30px; height:30px; border-radius:6px; border:1px solid #E2DED7; display:flex; align-items:center; justify-content:center; color:#6B6862; font-size:16px;">←</div>
+          <span style="font-size:11px; font-weight:600; letter-spacing:0.03em; color:#8A4B26; background:#F3E8DF; padding:3px 9px; border-radius:999px;">EXCHANGE</span>
+          <div style="font-size:15px; font-weight:600; color:#23211E;">Wrong size — need to exchange the Stitch Cardigan</div>
+          <div style="margin-left:auto; display:flex; align-items:center; gap:7px;">
+            <span style="display:inline-flex; gap:3px; align-items:center;"><i style="width:6px;height:6px;border-radius:50%;background:#2F5D50;display:inline-block;"></i><i style="width:6px;height:6px;border-radius:50%;background:#2F5D50;display:inline-block;"></i><i style="width:6px;height:6px;border-radius:50%;background:#2F5D50;display:inline-block;"></i></span>
+            <span style="font-size:12.5px; font-weight:600; color:#2F5D50;">High confidence</span>
+          </div>
+        </div>
+        <div style="display:flex; height:760px;">
+          <!-- reading column -->
+          <div style="flex:1; overflow:auto; padding:34px 0 120px; min-width:0;">
+            <div style="max-width:600px; margin:0 auto; padding:0 28px;">
+              <div style="text-align:center; margin-bottom:24px;"><span style="font-size:12.5px; color:#a39e96; background:#F4F2EE; padding:4px 12px; border-radius:999px;">Earlier in conversation · 1 message</span></div>
+              <!-- customer -->
+              <div style="display:flex; align-items:center; gap:11px; margin-bottom:14px;">
+                <div style="flex:none; width:40px; height:40px; border-radius:50%; background:#E4ECF4; color:#2C5680; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:14px;">SC</div>
+                <div><div style="font-weight:600; font-size:15px; color:#23211E;">Sarah Chen</div><div class="mono" style="font-size:12px; color:#a39e96;">sarah.chen@gmail.com · 9:14 AM</div></div>
+              </div>
+              <div style="font-size:17px; line-height:1.75; color:#2d2a26; margin-bottom:30px;">
+                <p style="margin:0 0 15px;">Hi! I ordered the Stitch Cardigan in Medium but it's running large on me — the shoulders sit really wide. Could I exchange it for a Small? I still have the original packaging and haven't worn it out.</p>
+                <p style="margin:0;">Order is <span class="mono" style="font-size:15px;">#MS-10472</span>. Thanks so much! 💛 — Sarah</p>
+              </div>
+              <!-- inline order line -->
+              <div style="display:flex; align-items:center; gap:10px; background:#FBFAF8; border:1px solid #ECE9E4; border-radius:9px; padding:11px 14px; margin-bottom:30px;">
+                <div style="flex:none; width:34px; height:34px; border-radius:6px; background:repeating-linear-gradient(135deg,#EFE9E0,#EFE9E0 5px,#E7E0D5 5px,#E7E0D5 10px); border:1px solid #E2DED7;"></div>
+                <div style="font-size:13px; color:#46433e;"><span style="font-weight:600;">About this order:</span> <span class="mono">#MS-10472</span> · Stitch Cardigan, Oatmeal, Medium · delivered Jun 3</div>
+              </div>
+              <!-- divider -->
+              <div style="display:flex; align-items:center; gap:12px; margin-bottom:18px;"><span style="height:1px; flex:1; background:#ECE9E4;"></span><span style="font-size:12px; font-weight:600; color:#2F5D50; display:inline-flex; align-items:center; gap:6px;"><span style="width:16px;height:16px;border-radius:4px;background:#2F5D50;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9px;">✦</span> Your draft reply</span><span style="height:1px; flex:1; background:#ECE9E4;"></span></div>
+              <!-- draft -->
+              <div contenteditable="true" style="font-size:16px; line-height:1.75; color:#36332e; outline:none; border-radius:10px; padding:4px;">
+                <p style="margin:0 0 14px;">Hi Sarah,</p>
+                <p style="margin:0 0 14px;">Thank you so much for reaching out — and congratulations on the Stitch Cardigan! I'm sorry it's running large; the Medium does have a relaxed shoulder, so a Small should sit much closer to where you want it.</p>
+                <p style="margin:0 0 14px;">I'd be glad to set up the exchange. Since you still have the original packaging, just reply to confirm and I'll email you a prepaid return label. Drop the Medium at any carrier location, and the moment it's scanned we'll ship your Small — no need to wait for it to reach us first.</p>
+                <p style="margin:0 0 14px;">Your Small should be on its way within 1–2 business days. Happy to swap the color too if you'd like a change!</p>
+                <p style="margin:0;">Warmly,<br>Maya · Molly &amp; Stitch Customer Care</p>
+              </div>
+            </div>
+          </div>
+          <!-- context rail -->
+          <div style="flex:none; width:340px; overflow:auto; padding:24px 20px 120px; background:#FBFAF8; border-left:1px solid #ECE9E4;">
+            <div style="background:#fff; border:1px solid #E8E5E0; border-radius:10px; overflow:hidden; margin-bottom:16px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 15px; border-bottom:1px solid #F0EDE8;">
+                <span class="mono" style="font-size:14px; font-weight:500; color:#23211E;">#MS-10472</span>
+                <span style="font-size:11.5px; font-weight:600; color:#2C7A52; background:#E4F0E8; padding:3px 9px; border-radius:999px;">Fulfilled</span>
+              </div>
+              <div style="padding:13px 15px; border-bottom:1px solid #F0EDE8; display:flex; gap:11px;">
+                <div style="flex:none; width:46px; height:46px; border-radius:7px; background:repeating-linear-gradient(135deg,#EFE9E0,#EFE9E0 5px,#E7E0D5 5px,#E7E0D5 10px); border:1px solid #E2DED7;"></div>
+                <div><div style="font-size:14px; font-weight:600; color:#36332e;">Stitch Cardigan</div><div style="font-size:12.5px; color:#8c8880;">Oatmeal · Medium · Qty 1</div><div class="mono" style="font-size:12.5px; color:#6B6862;">$98.00</div></div>
+              </div>
+              <div style="padding:11px 15px; display:flex; flex-direction:column; gap:7px;">
+                <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:#8c8880;">Ordered</span><span style="color:#46433e;">May 28, 2026</span></div>
+                <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:#8c8880;">Delivered</span><span style="color:#46433e;">Jun 3</span></div>
+                <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:#8c8880;">Customer</span><span style="color:#46433e;">3rd order · 1 exchange</span></div>
+              </div>
+            </div>
+            <div style="background:#FBF4E9; border:1px solid #EAD9B8; border-radius:10px; padding:14px 15px; margin-bottom:16px;">
+              <div style="display:flex; align-items:center; gap:7px; margin-bottom:7px;"><span style="font-size:13px;">⚑</span><span style="font-size:12px; font-weight:700; letter-spacing:0.03em; color:#8A6A2A; text-transform:uppercase;">Suggested action</span></div>
+              <div style="font-size:13.5px; line-height:1.55; color:#5c4d2e;">Create an exchange order for size <strong>Small</strong>. Execute manually in Shopify.</div>
+            </div>
+            <div class="mono" style="font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#a39e96; margin-bottom:9px;">Draft based on</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div style="display:flex; gap:9px; align-items:flex-start; background:#fff; border:1px solid #E8E5E0; border-radius:8px; padding:10px 12px;"><span style="font-size:13px;">📘</span><div><div style="font-size:13px; font-weight:600; color:#36332e;">Exchange policy</div><div style="font-size:12px; color:#8c8880;">KB · 30-day window</div></div></div>
+              <div style="display:flex; gap:9px; align-items:flex-start; background:#fff; border:1px solid #E8E5E0; border-radius:8px; padding:10px 12px;"><span style="font-size:13px;">↩</span><div><div style="font-size:13px; font-weight:600; color:#36332e;">"Sizing exchange — cardigan"</div><div style="font-size:12px; color:#8c8880;"><span class="mono">#MS-9981</span></div></div></div>
+            </div>
+          </div>
+        </div>
+        <!-- floating action bar -->
+        <div style="position:absolute; left:0; right:340px; bottom:0; display:flex; justify-content:center; padding:18px; background:linear-gradient(to top, #fff 55%, rgba(255,255,255,0)); ">
+          <div style="display:flex; align-items:center; gap:10px; background:#fff; border:1px solid #E8E5E0; border-radius:12px; padding:10px 12px; box-shadow:0 6px 24px rgba(40,38,34,.10);">
+            <button style="border:none; cursor:pointer; background:#2F5D50; color:#fff; font-family:inherit; font-size:14.5px; font-weight:600; padding:11px 22px; border-radius:8px; display:inline-flex; align-items:center; gap:9px; box-shadow:0 1px 2px rgba(47,93,80,.35), inset 0 1px 0 rgba(255,255,255,.12);">Approve &amp; Send <span style="opacity:.6; font-weight:500;">↵</span></button>
+            <button style="border:1px solid #E2DED7; cursor:pointer; background:#fff; color:#46433e; font-family:inherit; font-size:14px; font-weight:500; padding:10px 15px; border-radius:8px;">↻ Regenerate</button>
+            <button style="border:none; cursor:pointer; background:transparent; color:#9a968f; font-family:inherit; font-size:14px; font-weight:500; padding:10px 12px; border-radius:8px;">Dismiss</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
