@@ -2,7 +2,11 @@ import { google } from "googleapis";
 import type { OAuth2Client } from "google-auth-library";
 import { eq } from "drizzle-orm";
 import { connections, type Db } from "@ms/db";
-import { GMAIL_READONLY_SCOPE, type GoogleConfig } from "./config";
+import {
+  GMAIL_SCOPES,
+  GMAIL_SEND_SCOPE,
+  type GoogleConfig,
+} from "./config";
 import { decryptJson, encryptJson, type EncryptedPayload } from "./crypto";
 
 // The token bundle we persist (encrypted). We rely on the refresh_token for
@@ -27,9 +31,24 @@ export function buildConsentUrl(cfg: GoogleConfig, state: string): string {
   return client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
-    scope: [GMAIL_READONLY_SCOPE],
+    // Read-only ingestion + the guarded send scope (Phase 3).
+    scope: GMAIL_SCOPES,
     state,
   });
+}
+
+// True when the stored connection was granted the send scope. Sending is blocked
+// (with a "reconnect Gmail" prompt) until this is true.
+export function tokensHaveSendScope(tokens: StoredGmailTokens | null): boolean {
+  return Boolean(tokens?.scope?.includes(GMAIL_SEND_SCOPE));
+}
+
+export async function gmailCanSend(
+  db: Db,
+  encryptionKey: string,
+): Promise<boolean> {
+  const tokens = await loadGmailTokens(db, encryptionKey);
+  return Boolean(tokens?.refresh_token) && tokensHaveSendScope(tokens);
 }
 
 export async function exchangeCodeForTokens(

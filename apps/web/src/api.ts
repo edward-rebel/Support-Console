@@ -1,9 +1,11 @@
 import type {
+  DraftDTO,
   KnowledgeBuildStatus,
   KnowledgeEntryDTO,
   KnowledgeEntryType,
   OperatorDTO,
   Paginated,
+  SendResultDTO,
   ShopifyContextDTO,
   SyncResultDTO,
   ThreadDetailDTO,
@@ -60,8 +62,20 @@ export interface SenderRuleDTO {
 
 export interface GmailStatus {
   connected: boolean;
+  canSend: boolean;
   account: string;
   configured: boolean;
+}
+
+export class SendBlockedError extends ApiError {
+  constructor(
+    status: number,
+    message: string,
+    public reason: string,
+  ) {
+    super(status, message);
+    this.name = "SendBlockedError";
+  }
 }
 export interface SyncStatus {
   syncing: boolean;
@@ -165,6 +179,43 @@ export const api = {
     }),
   deleteKnowledge: (id: string) =>
     request<{ ok: boolean }>(`/knowledge/${id}`, { method: "DELETE" }),
+
+  // ── Drafting + send (Phase 3) ─────────────────────────────────────────────
+  getDraft: (threadId: string) =>
+    request<DraftDTO | null>(`/threads/${threadId}/draft`),
+  generateDraft: (threadId: string) =>
+    request<DraftDTO>(`/threads/${threadId}/draft`, { method: "POST" }),
+  updateDraft: (draftId: string, body: string) =>
+    request<DraftDTO>(`/drafts/${draftId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ body }),
+    }),
+  dismissDraft: (draftId: string) =>
+    request<DraftDTO>(`/drafts/${draftId}/dismiss`, { method: "POST" }),
+  // Guarded send. Surfaces a SendBlockedError (with reason) on 412 so the UI can
+  // prompt the operator to reconnect Gmail with send permission.
+  approveSend: async (draftId: string, body?: string): Promise<SendResultDTO> => {
+    const res = await fetch(`${API_URL}/drafts/${draftId}/approve-send`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body ? { body } : {}),
+    });
+    if (!res.ok) {
+      let message = res.statusText;
+      let reason = "failed";
+      try {
+        const b = (await res.json()) as { error?: string; reason?: string };
+        if (b.error) message = b.error;
+        if (b.reason) reason = b.reason;
+      } catch {
+        /* non-JSON */
+      }
+      if (res.status === 412) throw new SendBlockedError(res.status, message, reason);
+      throw new ApiError(res.status, message);
+    }
+    return (await res.json()) as SendResultDTO;
+  },
 
   // ── Shopify (read-only) ───────────────────────────────────────────────────
   shopifyStatus: () =>

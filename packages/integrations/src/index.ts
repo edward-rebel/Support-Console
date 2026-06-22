@@ -8,3 +8,5 @@ export * from "./triage";
 export * from "./embeddings";
 export * from "./knowledge";
 export * from "./shopify";
+export * from "./drafting";
+export * from "./gmail-send";

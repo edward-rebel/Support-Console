@@ -16,6 +16,11 @@ export const MODELS = {
     anthropic: "claude-sonnet-4-6",
     openai: "gpt-5.4",
   },
+  // Drafting model (Phase 3): writes the reply. Strong tier per spec §4.
+  draft: {
+    anthropic: "claude-sonnet-4-6",
+    openai: "gpt-5.4",
+  },
   // Embeddings run on OpenAI (text-embedding-3-small, 1536 dims). Swap here.
   embeddings: {
     openai: "text-embedding-3-small",
@@ -25,6 +30,9 @@ export const MODELS = {
 // Bump when the triage prompt changes so we can tell which version classified a
 // thread (mirrors `prompt_version` on drafts).
 export const TRIAGE_PROMPT_VERSION = "triage-v1";
+
+// Bump when the drafting prompt changes — stored on each draft as prompt_version.
+export const DRAFT_PROMPT_VERSION = "draft-v1";
 
 export function makeAnthropic(apiKey: string): Anthropic {
   return new Anthropic({ apiKey });
@@ -190,6 +198,9 @@ export interface GenerateStructuredInput {
   schema: Record<string, unknown>;
   schemaName: string;
   maxTokens?: number;
+  // Which model tier to use (defaults to the distill tier). Drafting passes the
+  // draft tier.
+  models?: { anthropic: string; openai: string };
 }
 
 async function generateWithAnthropic(
@@ -198,7 +209,7 @@ async function generateWithAnthropic(
 ): Promise<unknown> {
   const client = makeAnthropic(apiKey);
   const res = await client.messages.create({
-    model: MODELS.distill.anthropic,
+    model: (input.models ?? MODELS.distill).anthropic,
     max_tokens: input.maxTokens ?? 4096,
     system: input.systemPrompt,
     tools: [
@@ -224,7 +235,7 @@ async function generateWithOpenAI(
 ): Promise<unknown> {
   const client = makeOpenAI(apiKey);
   const res = await client.responses.create({
-    model: MODELS.distill.openai,
+    model: (input.models ?? MODELS.distill).openai,
     reasoning: { effort: "medium" },
     max_output_tokens: input.maxTokens ?? 8000,
     input: [

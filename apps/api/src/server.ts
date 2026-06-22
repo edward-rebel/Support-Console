@@ -15,6 +15,7 @@ import { registerTriageRoutes } from "./routes/triage";
 import { registerSenderRuleRoutes } from "./routes/sender-rules";
 import { registerKnowledgeRoutes } from "./routes/knowledge";
 import { registerShopifyRoutes } from "./routes/shopify";
+import { registerDraftRoutes } from "./routes/drafts";
 import { SyncRunner } from "./sync-runner";
 
 async function main() {
@@ -87,6 +88,7 @@ async function main() {
   registerSenderRuleRoutes(app);
   registerKnowledgeRoutes(app);
   registerShopifyRoutes(app);
+  registerDraftRoutes(app);
 
   // Shared ingestion runner — used by the manual /sync route and the scheduler.
   const runner = new SyncRunner(app.appCtx.db, env.integrations);

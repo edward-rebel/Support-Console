@@ -2,12 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DOMPurify from "dompurify";
 import type {
+  BasedOnItemDTO,
+  ConfidenceLevel,
+  DraftDTO,
   MessageDTO,
   ShopifyContextDTO,
   ShopifyOrderDTO,
   ThreadDetailDTO,
 } from "@ms/shared";
-import { api } from "../api";
+import { api, SendBlockedError } from "../api";
 import { useIsMobile } from "../useIsMobile";
 import { ChevronLeftIcon, BagIcon } from "../icons";
 import { avatarTokens, categoryTokens, initialsFrom } from "../tokens";
@@ -168,6 +171,8 @@ export function Review() {
   const [thread, setThread] = useState<ThreadDetailDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reclassifying, setReclassifying] = useState(false);
+  const [draft, setDraft] = useState<DraftDTO | null>(null);
+  const [canSend, setCanSend] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const reclassify = async (isCustomer: boolean) => {
@@ -192,6 +197,23 @@ export function Review() {
         if (active) setError("Could not load this thread.");
       }
     })();
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  // Load any existing draft + whether Gmail can send.
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    void api
+      .getDraft(id)
+      .then((d) => active && setDraft(d))
+      .catch(() => {});
+    void api
+      .gmailStatus()
+      .then((s) => active && setCanSend(s.canSend))
+      .catch(() => {});
     return () => {
       active = false;
     };
@@ -307,21 +329,7 @@ export function Review() {
               Draft confidence
             </span>
           )}
-          {[0, 1, 2].map((i) => (
-            <i
-              key={i}
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: "var(--dot-off)",
-                display: "inline-block",
-              }}
-            />
-          ))}
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-3)" }}>
-            —
-          </span>
+          <ConfidenceDots confidence={draft?.confidence ?? null} />
         </div>
       </div>
 
@@ -376,131 +384,17 @@ export function Review() {
             ))}
           </div>
 
-          {/* composer — placeholder until AI drafting arrives in Phase 3 */}
-          <div
-            style={{
-              flex: "none",
-              borderTop: "1px solid var(--border)",
-              background: "var(--surface-3)",
-              padding: isMobile ? "14px 16px 16px" : "16px 26px 18px",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 11 }}>
-              <span
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: 5,
-                  background: "var(--accent)",
-                  color: "var(--accent-fg)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 11,
-                  fontWeight: 700,
-                }}
-              >
-                ✦
-              </span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
-                AI draft
-              </span>
-              <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>
-                · drafting arrives in Phase 3
-              </span>
-            </div>
-            <div
-              style={{
-                background: "var(--surface)",
-                border: "1px dashed var(--border)",
-                borderRadius: 10,
-                padding: "20px 18px",
-                fontSize: 14,
-                color: "var(--text-3)",
-                textAlign: "center",
-              }}
-            >
-              No draft yet. In Phase 3 the AI will draft a reply here, grounded in
-              the knowledge base and this customer's Shopify orders — and you'll
-              approve, edit, or regenerate it.
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 15 }}>
-              <button
-                disabled
-                title="Sending is introduced in Phase 3"
-                style={{
-                  border: "none",
-                  cursor: "not-allowed",
-                  background: "var(--accent)",
-                  color: "var(--accent-fg)",
-                  fontSize: 14.5,
-                  fontWeight: 600,
-                  padding: "11px 20px",
-                  borderRadius: 9,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 10,
-                  opacity: 0.45,
-                }}
-              >
-                Approve &amp; Send
-              </button>
-              <button
-                disabled
-                style={{
-                  border: "1px solid var(--border)",
-                  cursor: "not-allowed",
-                  background: "var(--surface)",
-                  color: "var(--text-3)",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  padding: "10px 15px",
-                  borderRadius: 9,
-                  opacity: 0.6,
-                }}
-              >
-                Regenerate
-              </button>
-              {thread.isCustomer === false ? (
-                <button
-                  onClick={() => void reclassify(true)}
-                  disabled={reclassifying}
-                  style={{
-                    marginLeft: "auto",
-                    cursor: reclassifying ? "default" : "pointer",
-                    border: "1px solid var(--border)",
-                    background: "var(--accent-soft-bg)",
-                    color: "var(--accent-soft-fg)",
-                    fontSize: 14,
-                    fontWeight: 600,
-                    padding: "10px 15px",
-                    borderRadius: 9,
-                  }}
-                >
-                  ✓ Mark as customer request
-                </button>
-              ) : (
-                <button
-                  onClick={() => void reclassify(false)}
-                  disabled={reclassifying}
-                  title="Move this thread to Filtered out"
-                  style={{
-                    marginLeft: "auto",
-                    cursor: reclassifying ? "default" : "pointer",
-                    border: "none",
-                    background: "transparent",
-                    color: "var(--text-3)",
-                    fontSize: 14,
-                    fontWeight: 500,
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                  }}
-                >
-                  Dismiss · mark as noise
-                </button>
-              )}
-            </div>
-          </div>
+          <DraftComposer
+            threadId={thread.id}
+            isCustomer={thread.isCustomer}
+            draft={draft}
+            setDraft={setDraft}
+            canSend={canSend}
+            reclassifying={reclassifying}
+            onReclassify={reclassify}
+            onSent={() => navigate("/inbox")}
+            isMobile={isMobile}
+          />
         </div>
 
         {/* right: context rail */}
@@ -834,6 +728,399 @@ function ShopifyContextPanel({ threadId, email }: { threadId: string; email: str
           ))}
         </>
       )}
+    </div>
+  );
+}
+
+// ── Draft confidence + composer (Phase 3) ────────────────────────────────────
+function ConfidenceDots({ confidence }: { confidence: ConfidenceLevel | null }) {
+  const lit = confidence === "high" ? 3 : confidence === "medium" ? 2 : confidence === "low" ? 1 : 0;
+  const color =
+    confidence === "high"
+      ? "var(--conf-high)"
+      : confidence === "medium"
+        ? "var(--accent)"
+        : "var(--warn-tx)";
+  return (
+    <>
+      {[0, 1, 2].map((i) => (
+        <i
+          key={i}
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            background: i < lit ? color : "var(--dot-off)",
+            display: "inline-block",
+          }}
+        />
+      ))}
+      <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-3)" }}>
+        {confidence ?? "—"}
+      </span>
+    </>
+  );
+}
+
+const basedOnLabel: Record<BasedOnItemDTO["kind"], string> = {
+  canonical: "Canonical",
+  example: "Past reply",
+  policy: "Policy",
+  order: "Order",
+  tone: "Tone",
+};
+
+function DraftComposer({
+  threadId,
+  isCustomer,
+  draft,
+  setDraft,
+  canSend,
+  reclassifying,
+  onReclassify,
+  onSent,
+  isMobile,
+}: {
+  threadId: string;
+  isCustomer: boolean | null;
+  draft: DraftDTO | null;
+  setDraft: (d: DraftDTO | null) => void;
+  canSend: boolean;
+  reclassifying: boolean;
+  onReclassify: (isCustomer: boolean) => void;
+  onSent: () => void;
+  isMobile: boolean;
+}) {
+  const [body, setBody] = useState(draft?.body ?? "");
+  const [generating, setGenerating] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  useEffect(() => {
+    setBody(draft?.body ?? "");
+  }, [draft?.id, draft?.body]);
+
+  const generate = async () => {
+    if (generating) return;
+    setGenerating(true);
+    setError(null);
+    try {
+      const d = await api.generateDraft(threadId);
+      setDraft(d);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't generate a draft.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const dismiss = async () => {
+    if (!draft) return;
+    try {
+      await api.dismissDraft(draft.id);
+      setDraft(null);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const send = async () => {
+    if (!draft || sending || !body.trim()) return;
+    setSending(true);
+    setError(null);
+    setNeedsReconnect(false);
+    try {
+      await api.approveSend(draft.id, body);
+      setSent(true);
+    } catch (e) {
+      if (e instanceof SendBlockedError) {
+        setNeedsReconnect(true);
+        setError(e.message);
+      } else {
+        setError(e instanceof Error ? e.message : "Send failed.");
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const footerStyle: React.CSSProperties = {
+    flex: "none",
+    borderTop: "1px solid var(--border)",
+    background: "var(--surface-3)",
+    padding: isMobile ? "14px 16px 16px" : "16px 26px 18px",
+  };
+
+  if (sent) {
+    return (
+      <div style={footerStyle}>
+        <div
+          style={{
+            background: "var(--accent-soft-bg)",
+            color: "var(--accent-soft-fg)",
+            borderRadius: 10,
+            padding: "16px 18px",
+            fontSize: 14,
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          ✓ Reply sent on the Gmail thread.
+          <button
+            onClick={onSent}
+            style={{
+              marginLeft: "auto",
+              cursor: "pointer",
+              border: "1px solid var(--border)",
+              background: "var(--surface)",
+              color: "var(--text-2)",
+              fontSize: 13,
+              fontWeight: 600,
+              padding: "7px 13px",
+              borderRadius: 8,
+            }}
+          >
+            Back to inbox
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={footerStyle}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 11 }}>
+        <span
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: 5,
+            background: "var(--accent)",
+            color: "var(--accent-fg)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 11,
+            fontWeight: 700,
+          }}
+        >
+          ✦
+        </span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
+          AI draft
+        </span>
+        {draft && (
+          <span style={{ fontSize: 12, color: "var(--text-3)" }}>
+            · {draft.confidence ?? "—"} confidence
+          </span>
+        )}
+      </div>
+
+      {/* "Draft based on…" provenance */}
+      {draft && draft.basedOn.length > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+          {draft.basedOn.slice(0, 6).map((b, i) => (
+            <span
+              key={i}
+              title={b.detail ?? undefined}
+              style={{
+                fontSize: 11,
+                padding: "3px 8px",
+                borderRadius: 999,
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
+                color: "var(--text-3)",
+              }}
+            >
+              {basedOnLabel[b.kind]}: {b.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {!draft ? (
+        <div
+          style={{
+            background: "var(--surface)",
+            border: "1px dashed var(--border)",
+            borderRadius: 10,
+            padding: "18px",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 14, color: "var(--text-3)", marginBottom: 12 }}>
+            Generate a reply grounded in the knowledge base, the brand tone, and this
+            customer's Shopify orders — then review and send.
+          </div>
+          <button
+            onClick={() => void generate()}
+            disabled={generating}
+            style={{
+              cursor: generating ? "default" : "pointer",
+              border: "none",
+              background: "var(--accent)",
+              color: "var(--accent-fg)",
+              fontSize: 14,
+              fontWeight: 600,
+              padding: "10px 18px",
+              borderRadius: 9,
+              opacity: generating ? 0.6 : 1,
+            }}
+          >
+            {generating ? "Drafting…" : "✦ Generate draft"}
+          </button>
+        </div>
+      ) : (
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={isMobile ? 8 : 9}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            padding: "12px 14px",
+            borderRadius: 10,
+            border: "1px solid var(--border)",
+            background: "var(--surface)",
+            color: "var(--text)",
+            fontSize: 14,
+            fontFamily: "var(--sans)",
+            lineHeight: 1.55,
+            resize: "vertical",
+          }}
+        />
+      )}
+
+      {/* recommended (manual) action for the operator */}
+      {draft?.recommendedAction && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: "10px 13px",
+            borderRadius: 9,
+            fontSize: 12.5,
+            background: "var(--warn-bg)",
+            color: "var(--warn-tx)",
+            border: "1px solid var(--warn-bd)",
+          }}
+        >
+          <b>Suggested action (do manually):</b> {draft.recommendedAction}
+        </div>
+      )}
+
+      {error && (
+        <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--warn-tx)" }}>
+          {error}
+          {needsReconnect && (
+            <>
+              {" "}
+              <a href={api.gmailConnectUrl()} style={{ color: "var(--accent)", fontWeight: 600 }}>
+                Reconnect Gmail →
+              </a>
+            </>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 14, flexWrap: "wrap" }}>
+        {draft && (
+          <button
+            onClick={() => void send()}
+            disabled={sending || !canSend || !body.trim()}
+            title={canSend ? undefined : "Reconnect Gmail to enable sending"}
+            style={{
+              border: "none",
+              cursor: sending || !canSend || !body.trim() ? "default" : "pointer",
+              background: "var(--accent)",
+              color: "var(--accent-fg)",
+              fontSize: 14.5,
+              fontWeight: 600,
+              padding: "11px 20px",
+              borderRadius: 9,
+              opacity: sending || !canSend || !body.trim() ? 0.5 : 1,
+            }}
+          >
+            {sending ? "Sending…" : "Approve & Send"}
+          </button>
+        )}
+        {draft && (
+          <button
+            onClick={() => void generate()}
+            disabled={generating}
+            style={{
+              border: "1px solid var(--border)",
+              cursor: generating ? "default" : "pointer",
+              background: "var(--surface)",
+              color: "var(--text-2)",
+              fontSize: 14,
+              fontWeight: 500,
+              padding: "10px 15px",
+              borderRadius: 9,
+            }}
+          >
+            {generating ? "…" : "Regenerate"}
+          </button>
+        )}
+        {draft && (
+          <button
+            onClick={() => void dismiss()}
+            style={{
+              border: "1px solid var(--border)",
+              cursor: "pointer",
+              background: "transparent",
+              color: "var(--text-3)",
+              fontSize: 14,
+              fontWeight: 500,
+              padding: "10px 13px",
+              borderRadius: 9,
+            }}
+          >
+            Discard draft
+          </button>
+        )}
+        {isCustomer === false ? (
+          <button
+            onClick={() => onReclassify(true)}
+            disabled={reclassifying}
+            style={{
+              marginLeft: "auto",
+              cursor: reclassifying ? "default" : "pointer",
+              border: "1px solid var(--border)",
+              background: "var(--accent-soft-bg)",
+              color: "var(--accent-soft-fg)",
+              fontSize: 14,
+              fontWeight: 600,
+              padding: "10px 15px",
+              borderRadius: 9,
+            }}
+          >
+            ✓ Mark as customer request
+          </button>
+        ) : (
+          <button
+            onClick={() => onReclassify(false)}
+            disabled={reclassifying}
+            title="Move this thread to Filtered out"
+            style={{
+              marginLeft: "auto",
+              cursor: reclassifying ? "default" : "pointer",
+              border: "none",
+              background: "transparent",
+              color: "var(--text-3)",
+              fontSize: 14,
+              fontWeight: 500,
+              padding: "10px 12px",
+              borderRadius: 8,
+            }}
+          >
+            Dismiss · mark as noise
+          </button>
+        )}
+      </div>
     </div>
   );
 }

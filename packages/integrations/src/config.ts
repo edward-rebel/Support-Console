@@ -49,7 +49,10 @@ export function parseAiProviderOrder(value: string | undefined): AiProvider[] {
     : ["anthropic", "openai"];
 }
 
-// The Gmail scope used in Phase 0 — READ ONLY. The send/modify scopes are added
-// only at Phase 3 when the guarded send path is introduced.
+// Gmail scopes. Read-only was the Phase 0 scope; the send scope is added in
+// Phase 3 for the single guarded reply-send path. Adding it requires the
+// operator to re-consent (Google only grants new scopes on a fresh consent).
 export const GMAIL_READONLY_SCOPE =
   "https://www.googleapis.com/auth/gmail.readonly";
+export const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
+export const GMAIL_SCOPES = [GMAIL_READONLY_SCOPE, GMAIL_SEND_SCOPE];

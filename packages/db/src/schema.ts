@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import {
   CONNECTION_PROVIDERS,
+  DRAFT_STATUSES,
   EMBEDDING_DIMENSIONS,
   KNOWLEDGE_ENTRY_TYPES,
   MESSAGE_DIRECTIONS,
@@ -37,6 +38,9 @@ export const connectionProviderEnum = pgEnum("connection_provider", [
 ] as [string, ...string[]]);
 export const knowledgeEntryTypeEnum = pgEnum("knowledge_entry_type", [
   ...KNOWLEDGE_ENTRY_TYPES,
+] as [string, ...string[]]);
+export const draftStatusEnum = pgEnum("draft_status", [
+  ...DRAFT_STATUSES,
 ] as [string, ...string[]]);
 
 // Reused column helpers.
@@ -209,6 +213,58 @@ export const toneProfile = pgTable("tone_profile", {
   ...timestamps,
 });
 
+// ── drafts ─ AI-generated reply awaiting human review (spec §7) ──────────────
+// One active (pending) draft per thread in practice; regenerating supersedes the
+// prior one. Email is only ever sent from an approved draft (Phase 3 send path).
+export const drafts = pgTable(
+  "drafts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    categoryId: uuid("category_id").references(() => categories.id),
+    confidence: text("confidence"), // high|medium|low
+    status: draftStatusEnum("status").default("pending").notNull(),
+    // Provenance: the knowledge entries / order context the draft was grounded
+    // in (shown as "Draft based on…" and kept for auditing).
+    basedOn: jsonb("based_on"),
+    // A suggested Shopify action for the human to perform manually (read-only
+    // integration — we never execute it). Plain text.
+    recommendedAction: text("recommended_action"),
+    modelId: text("model_id"),
+    promptVersion: text("prompt_version"),
+    ...timestamps,
+  },
+  (t) => ({
+    threadIdx: index("drafts_thread_id_idx").on(t.threadId),
+    statusIdx: index("drafts_status_idx").on(t.status),
+  }),
+);
+
+// ── sends ─ immutable audit log; one row per email actually sent (spec §7) ───
+export const sends = pgTable(
+  "sends",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    draftId: uuid("draft_id").references(() => drafts.id),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => threads.id),
+    sentGmailMessageId: text("sent_gmail_message_id"),
+    bodySnapshot: text("body_snapshot").notNull(),
+    approvedByUserId: uuid("approved_by_user_id").references(() => users.id),
+    sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => ({
+    threadIdx: index("sends_thread_id_idx").on(t.threadId),
+  }),
+);
+
 // Convenience inferred types.
 export type User = typeof users.$inferSelect;
 export type Thread = typeof threads.$inferSelect;
@@ -221,3 +277,6 @@ export type SyncStateRow = typeof syncState.$inferSelect;
 export type KnowledgeEntry = typeof knowledgeEntries.$inferSelect;
 export type NewKnowledgeEntry = typeof knowledgeEntries.$inferInsert;
 export type ToneProfileRow = typeof toneProfile.$inferSelect;
+export type Draft = typeof drafts.$inferSelect;
+export type NewDraft = typeof drafts.$inferInsert;
+export type Send = typeof sends.$inferSelect;

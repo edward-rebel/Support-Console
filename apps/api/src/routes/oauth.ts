@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import {
   buildConsentUrl,
   exchangeCodeForTokens,
+  gmailCanSend,
   isGmailConnected,
   saveGmailConnection,
 } from "@ms/integrations";
@@ -27,8 +28,10 @@ export function registerOAuthRoutes(app: FastifyInstance): void {
     { preHandler: requireAuth },
     async (_request, reply) => {
       const connected = await isGmailConnected(db, cfg.encryptionKey);
+      const canSend = connected && (await gmailCanSend(db, cfg.encryptionKey));
       return reply.send({
         connected,
+        canSend,
         account: cfg.gmailAccount,
         configured: Boolean(cfg.google.clientId && cfg.google.clientSecret),
       });

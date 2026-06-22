@@ -1,5 +1,6 @@
 import type {
   ConfidenceLevel,
+  DraftStatus,
   KnowledgeEntryType,
   MessageDirection,
   ThreadStatus,
@@ -138,6 +139,36 @@ export interface ShopifyContextDTO {
   // How the context was resolved for a thread (email vs order-number fallback vs
   // a previously pinned order). Null for ad-hoc lookups.
   matchedBy?: ShopifyMatch;
+}
+
+// ── Drafting + send (Phase 3) ────────────────────────────────────────────────
+
+// One piece of provenance the draft was grounded in (a knowledge entry or an
+// order). Shown as "Draft based on…" and stored for auditing.
+export interface BasedOnItemDTO {
+  kind: "canonical" | "example" | "policy" | "order" | "tone";
+  label: string;
+  detail?: string | null;
+}
+
+export interface DraftDTO {
+  id: string;
+  threadId: string;
+  body: string;
+  confidence: ConfidenceLevel | null;
+  status: DraftStatus;
+  basedOn: BasedOnItemDTO[];
+  recommendedAction: string | null;
+  modelId: string | null;
+  promptVersion: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SendResultDTO {
+  ok: boolean;
+  sentGmailMessageId: string | null;
+  sentAt: string;
 }
 
 export interface KnowledgeBuildStatus {

@@ -103,12 +103,14 @@ export function Settings() {
                 {gmail?.account ?? "contact@mollyandstitch.us"} ·{" "}
                 {gmail?.configured
                   ? gmail.connected
-                    ? "Read-only access"
+                    ? gmail.canSend
+                      ? "Read + send access"
+                      : "Read-only — reconnect to enable sending"
                     : "Not connected"
                   : "OAuth not configured (set GOOGLE_CLIENT_ID/SECRET)"}
               </div>
             </div>
-            {gmail?.connected ? (
+            {gmail?.connected && gmail.canSend ? (
               <span
                 style={{
                   fontSize: 12,
@@ -121,6 +123,20 @@ export function Settings() {
               >
                 Connected
               </span>
+            ) : gmail?.connected && !gmail.canSend ? (
+              <a
+                href={api.gmailConnectUrl()}
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  padding: "8px 14px",
+                  borderRadius: 9,
+                  background: "var(--accent)",
+                  color: "var(--accent-fg)",
+                }}
+              >
+                Reconnect to enable sending
+              </a>
             ) : (
               <a
                 href={api.gmailConnectUrl()}

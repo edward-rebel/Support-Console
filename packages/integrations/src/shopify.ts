@@ -1,3 +1,5 @@
+import { asc, eq } from "drizzle-orm";
+import { messages, threads, type Db } from "@ms/db";
 import type { IntegrationsConfig, ShopifyConfig } from "./config";
 import type { ShopifyContextDTO, ShopifyOrderDTO } from "@ms/shared";
 
@@ -266,4 +268,107 @@ export async function getShopifyContext(
     return byEmail(cfg.shopify, params.email.trim());
   }
   return notFound();
+}
+
+function stripTags(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+// Resolve the order/customer context for a whole thread: a pinned order →
+// customer email → an order number found in the subject/body. Optionally pins a
+// freshly-resolved order to the thread so it survives reloads. Shared by the API
+// route and the Phase 3 drafting agent so the logic lives in one place.
+export async function resolveThreadShopify(
+  db: Db,
+  cfg: IntegrationsConfig,
+  threadId: string,
+  opts: { persist?: boolean } = {},
+): Promise<ShopifyContextDTO> {
+  if (!hasShopify(cfg) || !cfg.shopify) {
+    return { found: false, customer: null, orders: [], matchedBy: null };
+  }
+  const rows = await db
+    .select({
+      id: threads.id,
+      email: threads.customerEmail,
+      subject: threads.subject,
+      pinned: threads.shopifyOrderName,
+    })
+    .from(threads)
+    .where(eq(threads.id, threadId))
+    .limit(1);
+  const t = rows[0];
+  if (!t) return { found: false, customer: null, orders: [], matchedBy: null };
+
+  // 1) Pinned order is authoritative.
+  if (t.pinned) {
+    const ctx = await getShopifyContext(cfg, { orderNumber: t.pinned });
+    if (ctx.found) return { ...ctx, matchedBy: "pinned" };
+  }
+  // 2) Customer email (preferred default).
+  if (t.email) {
+    const ctx = await getShopifyContext(cfg, { email: t.email });
+    if (ctx.found && ctx.orders.length > 0) return { ...ctx, matchedBy: "email" };
+  }
+  // 3) Order number in the subject/body (different sender than the order used).
+  const msgs = await db
+    .select({
+      subject: messages.subject,
+      bodyText: messages.bodyText,
+      bodyHtml: messages.bodyHtml,
+    })
+    .from(messages)
+    .where(eq(messages.threadId, t.id))
+    .orderBy(asc(messages.gmailInternalDate));
+  const haystacks = [
+    t.subject ?? "",
+    ...msgs.map((m) => m.subject ?? ""),
+    ...msgs.map((m) =>
+      m.bodyText?.trim() ? m.bodyText : m.bodyHtml ? stripTags(m.bodyHtml) : "",
+    ),
+  ];
+  let orderNo: string | null = null;
+  for (const h of haystacks) {
+    orderNo = extractOrderNumber(h);
+    if (orderNo) break;
+  }
+  if (orderNo) {
+    const ctx = await getShopifyContext(cfg, { orderNumber: orderNo });
+    if (ctx.found) {
+      if (opts.persist) {
+        const name = ctx.orders[0]?.name ?? orderNo;
+        await db
+          .update(threads)
+          .set({ shopifyOrderName: name, updatedAt: new Date() })
+          .where(eq(threads.id, t.id));
+      }
+      return { ...ctx, matchedBy: "order" };
+    }
+  }
+  return { found: false, customer: null, orders: [], matchedBy: null };
+}
+
+// Format a resolved context as compact text for the drafting prompt.
+export function formatShopifyContext(ctx: ShopifyContextDTO): string {
+  if (!ctx.found) return "No matching Shopify order or customer was found.";
+  const lines: string[] = [];
+  if (ctx.customer) {
+    lines.push(
+      `Customer: ${ctx.customer.name ?? "(unknown)"}${
+        ctx.customer.ordersCount != null ? ` — ${ctx.customer.ordersCount} order(s)` : ""
+      }${ctx.customer.totalSpent ? `, ${ctx.customer.totalSpent} ${ctx.customer.currency ?? ""} lifetime` : ""}`,
+    );
+  }
+  for (const o of ctx.orders) {
+    const items = o.lineItems.map((li) => `${li.quantity}× ${li.title}`).join(", ");
+    const tracking = o.tracking
+      .map((t) => `${t.company ?? "tracking"} ${t.number ?? ""}${t.url ? ` (${t.url})` : ""}`.trim())
+      .join("; ");
+    lines.push(
+      `Order ${o.name} — ${o.financialStatus ?? "?"}/${o.fulfillmentStatus ?? "?"}, ${
+        o.total ? `${o.total} ${o.currency ?? ""}` : "?"
+      }${items ? `\n  Items: ${items}` : ""}${tracking ? `\n  Tracking: ${tracking}` : ""}`,
+    );
+  }
+  return lines.join("\n");
 }
