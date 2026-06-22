@@ -571,15 +571,23 @@ function DraftComposer({
         {isMobile && draft && <ConfidenceDots confidence={draft.confidence} />}
       </div>
 
-      {draft && draft.basedOn.length > 0 && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-          {draft.basedOn.slice(0, 6).map((b, i) => (
-            <span key={i} title={b.detail ?? undefined} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 999, background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-3)" }}>
-              {basedOnLabel[b.kind]}: {b.label}
-            </span>
-          ))}
-        </div>
-      )}
+      {(() => {
+        // Hide the noisy "Past reply" (example) provenance pills from the
+        // composer — retrieval often returns several and they clutter the draft
+        // section. The full provenance is still recorded on the draft for
+        // auditing; we just don't surface example pills to the operator.
+        const pills = draft ? draft.basedOn.filter((b) => b.kind !== "example") : [];
+        if (pills.length === 0) return null;
+        return (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+            {pills.slice(0, 6).map((b, i) => (
+              <span key={i} title={b.detail ?? undefined} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 999, background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-3)" }}>
+                {basedOnLabel[b.kind]}: {b.label}
+              </span>
+            ))}
+          </div>
+        );
+      })()}
 
       {loading && !draft ? (
         <div style={{ background: "var(--surface)", border: "1px dashed var(--border)", borderRadius: 10, padding: "18px", textAlign: "center", fontSize: 13.5, color: "var(--text-3)" }}>
