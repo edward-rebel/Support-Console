@@ -1,6 +1,8 @@
 import type {
   ConfidenceLevel,
   DraftStatus,
+  FeedbackStatus,
+  FeedbackType,
   KnowledgeEntryType,
   MessageDirection,
   Sentiment,
@@ -109,6 +111,18 @@ export interface TrendPointDTO {
   received: number;
   sent: number;
 }
+// ── In-app feedback ──────────────────────────────────────────────────────────
+export interface FeedbackDTO {
+  id: string;
+  message: string;
+  title: string | null;
+  type: FeedbackType | null;
+  page: string | null;
+  status: FeedbackStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface InsightsDTO {
   range: string;
   totals: {

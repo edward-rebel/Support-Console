@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { api } from "../api";
 import { useSync } from "../sync";
 import { Shell } from "./Shell";
@@ -8,7 +8,9 @@ import { Shell } from "./Shell";
 // (needs-review count, Gmail connection status). Refetches when a sync finishes.
 export function AppLayout() {
   const { completedAt } = useSync();
+  const location = useLocation();
   const [needsReview, setNeedsReview] = useState(0);
+  const [feedbackOpen, setFeedbackOpen] = useState(0);
   const [account, setAccount] = useState("Gmail not connected");
   const [connected, setConnected] = useState(false);
 
@@ -16,12 +18,14 @@ export function AppLayout() {
     let active = true;
     void (async () => {
       try {
-        const [counts, gmail] = await Promise.all([
+        const [counts, gmail, fb] = await Promise.all([
           api.threadCounts(),
           api.gmailStatus(),
+          api.feedbackCounts().catch(() => ({ open: 0, total: 0 })),
         ]);
         if (!active) return;
         setNeedsReview(counts.needsReview);
+        setFeedbackOpen(fb.open);
         setConnected(gmail.connected);
         setAccount(
           gmail.connected ? gmail.account : "Gmail not connected",
@@ -33,11 +37,13 @@ export function AppLayout() {
     return () => {
       active = false;
     };
-  }, [completedAt]);
+    // Refetch on sync completion and when navigating (e.g. after acting on feedback).
+  }, [completedAt, location.pathname]);
 
   return (
     <Shell
       needsReviewCount={needsReview}
+      feedbackOpen={feedbackOpen}
       connectedAccount={account}
       gmailConnected={connected}
     >

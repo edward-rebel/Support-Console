@@ -41,6 +41,13 @@ export type KnowledgeEntryType = (typeof KNOWLEDGE_ENTRY_TYPES)[number];
 export const SENTIMENTS = ["positive", "neutral", "negative", "frustrated"] as const;
 export type Sentiment = (typeof SENTIMENTS)[number];
 
+// In-app user feedback. `type` is AI-assigned from the free-text message; the
+// user never classifies it themselves.
+export const FEEDBACK_TYPES = ["bug", "feature", "enhancement", "question", "other"] as const;
+export type FeedbackType = (typeof FEEDBACK_TYPES)[number];
+export const FEEDBACK_STATUSES = ["open", "addressed", "dismissed"] as const;
+export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
+
 // Dimension of the stored knowledge embeddings. Must match the embeddings
 // provider's output (OpenAI text-embedding-3-small = 1536) AND the pgvector
 // column width in @ms/db. Change all three together (provider, this constant,

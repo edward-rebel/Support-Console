@@ -10,3 +10,4 @@ export * from "./knowledge";
 export * from "./shopify";
 export * from "./drafting";
 export * from "./gmail-send";
+export * from "./feedback";

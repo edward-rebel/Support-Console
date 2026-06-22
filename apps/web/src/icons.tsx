@@ -117,3 +117,8 @@ export const FilterIcon = (p: IconProps) => (
     <path d="M3 5h18M6 12h12M10 19h4" />
   </Svg>
 );
+export const MessageIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </Svg>
+);

@@ -274,6 +274,26 @@ export const sends = pgTable(
   }),
 );
 
+// ── feedback ─ in-app user feedback (bugs / requests) ────────────────────────
+// `type` is AI-triaged from the free-text message; `page` is the route the user
+// was on when they submitted. status: open → addressed/dismissed.
+export const feedback = pgTable(
+  "feedback",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    message: text("message").notNull(),
+    title: text("title"), // AI short title
+    type: text("type"), // bug|feature|enhancement|question|other (AI-assigned)
+    page: text("page"), // route the user was on
+    status: text("status").default("open").notNull(),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id),
+    ...timestamps,
+  },
+  (t) => ({
+    statusIdx: index("feedback_status_idx").on(t.status),
+  }),
+);
+
 // Convenience inferred types.
 export type User = typeof users.$inferSelect;
 export type Thread = typeof threads.$inferSelect;
@@ -289,3 +309,4 @@ export type ToneProfileRow = typeof toneProfile.$inferSelect;
 export type Draft = typeof drafts.$inferSelect;
 export type NewDraft = typeof drafts.$inferInsert;
 export type Send = typeof sends.$inferSelect;
+export type Feedback = typeof feedback.$inferSelect;

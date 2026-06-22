@@ -1,5 +1,7 @@
 import type {
   DraftDTO,
+  FeedbackDTO,
+  FeedbackStatus,
   InsightsDTO,
   KnowledgeBuildStatus,
   KnowledgeEntryDTO,
@@ -219,6 +221,24 @@ export const api = {
     }
     return (await res.json()) as SendResultDTO;
   },
+
+  // ── Feedback ──────────────────────────────────────────────────────────────
+  submitFeedback: (message: string, page: string) =>
+    request<FeedbackDTO>("/feedback", {
+      method: "POST",
+      body: JSON.stringify({ message, page }),
+    }),
+  listFeedback: (status?: string) =>
+    request<FeedbackDTO[]>(`/feedback${status ? `?status=${status}` : ""}`),
+  feedbackCounts: () =>
+    request<{ open: number; total: number }>("/feedback/counts"),
+  updateFeedback: (id: string, status: FeedbackStatus) =>
+    request<FeedbackDTO>(`/feedback/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+  deleteFeedback: (id: string) =>
+    request<{ ok: boolean }>(`/feedback/${id}`, { method: "DELETE" }),
 
   // ── Shopify (read-only) ───────────────────────────────────────────────────
   shopifyStatus: () =>

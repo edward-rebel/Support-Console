@@ -5,6 +5,7 @@ import { useAuth } from "../auth";
 import { useSync } from "../sync";
 import { useIsMobile } from "../useIsMobile";
 import { SearchOverlay } from "./SearchOverlay";
+import { FeedbackWidget } from "./FeedbackWidget";
 
 // "Synced 3m ago" style relative label.
 function relativeTime(iso: string | null, now: number): string {
@@ -22,6 +23,7 @@ import {
   BookIcon,
   CheckCircleIcon,
   InboxIcon,
+  MessageIcon,
   MoonIcon,
   RefreshIcon,
   SearchIcon,
@@ -39,11 +41,13 @@ interface NavItem {
 export function Shell({
   children,
   needsReviewCount,
+  feedbackOpen,
   connectedAccount,
   gmailConnected,
 }: {
   children: ReactNode;
   needsReviewCount: number;
+  feedbackOpen: number;
   connectedAccount: string;
   gmailConnected: boolean;
 }) {
@@ -83,6 +87,12 @@ export function Shell({
     },
     { to: "/knowledge", label: "Knowledge Base", icon: <BookIcon size={18} /> },
     { to: "/insights", label: "Insights", icon: <BarChartIcon size={18} /> },
+    {
+      to: "/feedback",
+      label: "Feedback",
+      icon: <MessageIcon size={18} />,
+      count: feedbackOpen,
+    },
     { to: "/settings", label: "Settings", icon: <SettingsIcon size={18} /> },
   ];
 
@@ -604,6 +614,7 @@ export function Shell({
       </div>
 
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <FeedbackWidget />
     </div>
   );
 }

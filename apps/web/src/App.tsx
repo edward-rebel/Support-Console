@@ -9,6 +9,7 @@ import { Settings } from "./screens/Settings";
 import { Knowledge } from "./screens/Knowledge";
 import { Insights } from "./screens/Insights";
 import { Approvals } from "./screens/Approvals";
+import { Feedback } from "./screens/Feedback";
 
 export function App() {
   const { user, loading } = useAuth();
@@ -48,6 +49,7 @@ export function App() {
           <Route path="/approvals" element={<Approvals />} />
           <Route path="/knowledge" element={<Knowledge />} />
           <Route path="/insights" element={<Insights />} />
+          <Route path="/feedback" element={<Feedback />} />
           <Route path="*" element={<Navigate to="/inbox" replace />} />
         </Route>
       </Routes>
