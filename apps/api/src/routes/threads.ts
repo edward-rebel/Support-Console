@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, asc, desc, eq, ilike, isNull, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull, notInArray, or, type SQL, sql } from "drizzle-orm";
 import { categories, messages, threads } from "@ms/db";
 import type {
   AttachmentDTO,
@@ -57,12 +57,15 @@ export function registerThreadRoutes(app: FastifyInstance): void {
       Math.max(1, Number(request.query.pageSize ?? "50") || 50),
     );
     const statusParam = request.query.status;
-    const statusFilter = THREAD_STATUSES.includes(statusParam as ThreadStatus)
-      ? (statusParam as ThreadStatus)
-      : undefined;
 
     const conds: SQL[] = [];
-    if (statusFilter) conds.push(eq(threads.status, statusFilter));
+    // "open" is a virtual filter: any unanswered request — everything except
+    // already-sent or manually-closed. Otherwise an exact status match.
+    if (statusParam === "open") {
+      conds.push(notInArray(threads.status, ["sent", "closed"]));
+    } else if (THREAD_STATUSES.includes(statusParam as ThreadStatus)) {
+      conds.push(eq(threads.status, statusParam as ThreadStatus));
+    }
     // Triage tab: "noise" = filtered out (is_customer false); "customer" =
     // confirmed customers + not-yet-triaged (is_customer true or null).
     if (request.query.tab === "noise") {
@@ -160,15 +163,19 @@ export function registerThreadRoutes(app: FastifyInstance): void {
           customer: sql<number>`count(*) filter (where ${threads.isCustomer} is true or ${threads.isCustomer} is null)::int`,
           noise: sql<number>`count(*) filter (where ${threads.isCustomer} is false)::int`,
           pending: sql<number>`count(*) filter (where ${threads.isCustomer} is null)::int`,
-          needsReview: sql<number>`count(*) filter (where ${threads.status} = 'needs_review')::int`,
+          // "Open" = customer requests still unanswered (not sent, not closed).
+          open: sql<number>`count(*) filter (where (${threads.isCustomer} is true or ${threads.isCustomer} is null) and ${threads.status} not in ('sent','closed'))::int`,
         })
         .from(threads);
       const r = rows[0];
+      const open = r?.open ?? 0;
       return reply.send({
         customer: r?.customer ?? 0,
         noise: r?.noise ?? 0,
         pending: r?.pending ?? 0,
-        needsReview: r?.needsReview ?? 0,
+        open,
+        // Back-compat alias for the nav badge / subtitle (now the open count).
+        needsReview: open,
       });
     },
   );
@@ -268,6 +275,38 @@ export function registerThreadRoutes(app: FastifyInstance): void {
         messages: msgs,
       };
       return reply.send(detail);
+    },
+  );
+
+  // Manually close a request without sending a reply (e.g. customer said
+  // "thanks, got it"). Closed threads drop out of Open and Sent but remain
+  // under All. Does not send anything.
+  app.post<{ Params: { id: string } }>(
+    "/threads/:id/close",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const updated = await db
+        .update(threads)
+        .set({ status: "closed", updatedAt: new Date() })
+        .where(eq(threads.id, request.params.id))
+        .returning({ id: threads.id, status: threads.status });
+      if (!updated[0]) return reply.code(404).send({ error: "Thread not found" });
+      return reply.send({ ok: true, status: updated[0].status });
+    },
+  );
+
+  // Reopen a closed thread back to the unanswered queue.
+  app.post<{ Params: { id: string } }>(
+    "/threads/:id/reopen",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const updated = await db
+        .update(threads)
+        .set({ status: "new", updatedAt: new Date() })
+        .where(eq(threads.id, request.params.id))
+        .returning({ id: threads.id, status: threads.status });
+      if (!updated[0]) return reply.code(404).send({ error: "Thread not found" });
+      return reply.send({ ok: true, status: updated[0].status });
     },
   );
 }

@@ -7,6 +7,10 @@ export const THREAD_STATUSES = [
   "needs_review",
   "sent",
   "dismissed",
+  // Manually closed by the operator without sending a reply (e.g. the customer
+  // said "thanks, got it"). Counts as answered: excluded from Open and Sent,
+  // still visible under All.
+  "closed",
 ] as const;
 export type ThreadStatus = (typeof THREAD_STATUSES)[number];
 

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."thread_status" ADD VALUE 'closed';

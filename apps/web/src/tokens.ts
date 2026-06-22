@@ -49,6 +49,7 @@ const STATUS_LABELS: Record<ThreadStatus, string> = {
   needs_review: "Needs Review",
   sent: "Sent",
   dismissed: "Dismissed",
+  closed: "Closed",
 };
 
 const STATUS_TOKENS: Record<ThreadStatus, { bg: string; fg: string }> = {
@@ -57,6 +58,7 @@ const STATUS_TOKENS: Record<ThreadStatus, { bg: string; fg: string }> = {
   needs_review: { bg: "var(--st-review-bg)", fg: "var(--st-review-fg)" },
   sent: { bg: "var(--st-sent-bg)", fg: "var(--st-sent-fg)" },
   dismissed: { bg: "var(--st-dismissed-bg)", fg: "var(--st-dismissed-fg)" },
+  closed: { bg: "var(--st-dismissed-bg)", fg: "var(--st-dismissed-fg)" },
 };
 
 export function statusLabel(status: ThreadStatus): string {

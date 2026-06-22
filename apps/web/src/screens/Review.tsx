@@ -248,6 +248,27 @@ export function Review() {
     }
   };
 
+  // Close a request without replying (e.g. "thanks, got it"), then return to
+  // the inbox — the thread leaves the Open queue. Reopen brings it back.
+  const closeRequest = async () => {
+    if (!id) return;
+    try {
+      await api.closeThread(id);
+      navigate("/inbox");
+    } catch {
+      /* ignore — stay on the thread on failure */
+    }
+  };
+  const reopenRequest = async () => {
+    if (!id) return;
+    try {
+      await api.reopenThread(id);
+      await refreshThread();
+    } catch {
+      /* ignore */
+    }
+  };
+
   useEffect(() => {
     if (!id) return;
     let active = true;
@@ -350,10 +371,13 @@ export function Review() {
       canSend={canSend}
       loading={draftLoading}
       isSent={isSent}
+      isClosed={thread.status === "closed"}
       reclassifying={reclassifying}
       onReclassify={reclassify}
       onSent={() => navigate("/inbox")}
       onReplySent={refreshThread}
+      onClose={closeRequest}
+      onReopen={reopenRequest}
       isMobile={isMobile}
     />
   );
@@ -471,10 +495,13 @@ function DraftComposer({
   canSend,
   loading,
   isSent,
+  isClosed,
   reclassifying,
   onReclassify,
   onSent,
   onReplySent,
+  onClose,
+  onReopen,
   isMobile,
 }: {
   threadId: string;
@@ -484,10 +511,13 @@ function DraftComposer({
   canSend: boolean;
   loading: boolean;
   isSent: boolean;
+  isClosed: boolean;
   reclassifying: boolean;
   onReclassify: (isCustomer: boolean) => void;
   onSent: () => void;
   onReplySent: () => void | Promise<void>;
+  onClose: () => void;
+  onReopen: () => void;
   isMobile: boolean;
 }) {
   const [body, setBody] = useState(draft?.body ?? "");
@@ -579,6 +609,14 @@ function DraftComposer({
 
   return (
     <div style={footerStyle}>
+      {isClosed && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 11, padding: "9px 12px", borderRadius: 9, background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-2)" }}>This request is closed.</span>
+          <button onClick={onReopen} style={{ marginLeft: "auto", cursor: "pointer", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-2)", fontSize: 12.5, fontWeight: 600, padding: "6px 12px", borderRadius: 8 }}>
+            Reopen
+          </button>
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 11 }}>
         <span style={{ width: 20, height: 20, borderRadius: 5, background: "var(--accent)", color: "var(--accent-fg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>✦</span>
         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{draft ? "AI draft" : "Reply"}</span>
@@ -644,6 +682,11 @@ function DraftComposer({
         {draft && (
           <button onClick={() => void dismiss()} style={{ border: "1px solid var(--border)", cursor: "pointer", background: "transparent", color: "var(--text-3)", fontSize: 14, fontWeight: 500, padding: "10px 13px", borderRadius: 9 }}>
             Discard draft
+          </button>
+        )}
+        {!isClosed && (
+          <button onClick={onClose} title="Close this request without sending a reply" style={{ border: "1px solid var(--border)", cursor: "pointer", background: "transparent", color: "var(--text-2)", fontSize: 14, fontWeight: 500, padding: "10px 13px", borderRadius: 9 }}>
+            ✓ Close request
           </button>
         )}
         {isCustomer === false ? (

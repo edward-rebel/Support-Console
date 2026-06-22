@@ -30,11 +30,11 @@ function SentimentPill({ sentiment }: { sentiment: ThreadSummaryDTO["sentiment"]
   );
 }
 
-type StatusFilter = "needs" | "all" | "sent";
+type StatusFilter = "open" | "all" | "sent";
 type Tab = "customer" | "noise";
 
 const STATUS_QUERY: Record<StatusFilter, string | undefined> = {
-  needs: "needs_review",
+  open: "open",
   all: undefined,
   sent: "sent",
 };
@@ -51,10 +51,12 @@ export function Inbox() {
     const v = sessionStorage.getItem("inbox.tab");
     return v === "noise" || v === "customer" ? v : "customer";
   });
-  // Default to "All": needs_review stays empty until drafting (Phase 3).
+  // Default to "Open" (unanswered customer requests). Legacy persisted value
+  // "needs" maps to "open".
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
     const v = sessionStorage.getItem("inbox.status");
-    return v === "needs" || v === "all" || v === "sent" ? v : "all";
+    if (v === "needs") return "open";
+    return v === "open" || v === "all" || v === "sent" ? v : "open";
   });
   const [category, setCategory] = useState<string | null>(() => {
     const v = sessionStorage.getItem("inbox.category");
@@ -84,6 +86,7 @@ export function Inbox() {
     customer: 0,
     noise: 0,
     pending: 0,
+    open: 0,
     needsReview: 0,
   });
 
@@ -177,10 +180,10 @@ export function Inbox() {
     }
   };
 
-  const subtitle = `${counts.needsReview} need review · ${counts.customer} customer threads`;
+  const subtitle = `${counts.open} open · ${counts.customer} customer threads`;
 
   const showCaughtUp =
-    !loading && statusFilter === "needs" && threads.length === 0 && tab === "customer";
+    !loading && statusFilter === "open" && threads.length === 0 && tab === "customer";
 
   return (
     <div
@@ -283,10 +286,10 @@ export function Inbox() {
           {tab === "customer" && (
             <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", rowGap: 8 }}>
               <Chip
-                label="Needs Review"
+                label="Open"
                 primary
-                selected={statusFilter === "needs"}
-                onClick={() => setStatusFilter("needs")}
+                selected={statusFilter === "open"}
+                onClick={() => setStatusFilter("open")}
               />
               <Chip
                 label="All"

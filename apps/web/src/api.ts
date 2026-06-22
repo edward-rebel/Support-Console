@@ -119,6 +119,7 @@ export const api = {
       customer: number;
       noise: number;
       pending: number;
+      open: number;
       needsReview: number;
     }>("/threads/counts"),
   getThread: (id: string) => request<ThreadDetailDTO>(`/threads/${id}`),
@@ -126,6 +127,15 @@ export const api = {
     request<{ isCustomer: boolean | null }>(`/threads/${id}/reclassify`, {
       method: "POST",
       body: JSON.stringify({ isCustomer }),
+    }),
+  // Manually close a request (no reply sent) / reopen it to the Open queue.
+  closeThread: (id: string) =>
+    request<{ ok: boolean; status: string }>(`/threads/${id}/close`, {
+      method: "POST",
+    }),
+  reopenThread: (id: string) =>
+    request<{ ok: boolean; status: string }>(`/threads/${id}/reopen`, {
+      method: "POST",
     }),
   runTriage: () =>
     request<{ started: boolean; running: boolean }>("/triage/run", {
