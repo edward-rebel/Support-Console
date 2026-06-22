@@ -161,4 +161,61 @@ export function registerDraftRoutes(app: FastifyInstance): void {
       }
     },
   );
+
+  // Send a manual, operator-authored follow-up reply (no AI). Used after a
+  // thread has already been replied to. We create a pending draft from the
+  // operator's text and route it through the SAME single guarded send path
+  // (sendReply) so the audit log and the "email only sends on explicit human
+  // approval of a specific reply" invariant still hold — this is not auto-send.
+  app.post<{ Params: { id: string }; Body: { body?: string } }>(
+    "/threads/:id/reply",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const body = request.body?.body?.trim();
+      if (!body) return reply.code(400).send({ error: "body is required" });
+
+      const created = await db
+        .insert(drafts)
+        .values({
+          threadId: request.params.id,
+          body,
+          promptVersion: "operator-manual",
+        })
+        .returning();
+      const d = created[0];
+      if (!d) return reply.code(500).send({ error: "Could not create reply." });
+
+      try {
+        const result = await sendReply(db, cfg, {
+          threadId: d.threadId,
+          draftId: d.id,
+          body,
+          userId: request.session.userId ?? null,
+        });
+        const dto: SendResultDTO = {
+          ok: true,
+          sentGmailMessageId: result.sentGmailMessageId,
+          sentAt: result.send.sentAt.toISOString(),
+        };
+        return reply.send(dto);
+      } catch (err) {
+        // The send didn't go out — discard the just-created draft so it doesn't
+        // linger as a phantom pending draft on the thread. The operator's text
+        // is still in the composer (the UI only clears it on success).
+        await db
+          .update(drafts)
+          .set({ status: "dismissed", updatedAt: new Date() })
+          .where(eq(drafts.id, d.id));
+        if (err instanceof GmailSendError) {
+          const code =
+            err.reason === "no_send_scope" || err.reason === "not_connected"
+              ? 412
+              : 400;
+          return reply.code(code).send({ error: err.message, reason: err.reason });
+        }
+        app.log.error({ err }, "Manual reply send failed");
+        return reply.code(500).send({ error: "Send failed. See server logs." });
+      }
+    },
+  );
 }

@@ -43,10 +43,34 @@ export function Inbox() {
   const navigate = useNavigate();
   const { syncing, completedAt } = useSync();
   const isMobile = useIsMobile();
-  const [tab, setTab] = useState<Tab>("customer");
+  // Persist the active tab / status / category to sessionStorage so opening a
+  // thread and coming back (via the Back button, Esc, or browser back) restores
+  // exactly where the operator was — e.g. "Filtered out" or "Needs Review" stays
+  // selected rather than snapping back to Customer requests · All.
+  const [tab, setTab] = useState<Tab>(() => {
+    const v = sessionStorage.getItem("inbox.tab");
+    return v === "noise" || v === "customer" ? v : "customer";
+  });
   // Default to "All": needs_review stays empty until drafting (Phase 3).
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [category, setCategory] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    const v = sessionStorage.getItem("inbox.status");
+    return v === "needs" || v === "all" || v === "sent" ? v : "all";
+  });
+  const [category, setCategory] = useState<string | null>(() => {
+    const v = sessionStorage.getItem("inbox.category");
+    return v && CATEGORIES.some((c) => c.slug === v) ? v : null;
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem("inbox.tab", tab);
+  }, [tab]);
+  useEffect(() => {
+    sessionStorage.setItem("inbox.status", statusFilter);
+  }, [statusFilter]);
+  useEffect(() => {
+    if (category) sessionStorage.setItem("inbox.category", category);
+    else sessionStorage.removeItem("inbox.category");
+  }, [category]);
   const [catMenuOpen, setCatMenuOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const catRef = useRef<HTMLDivElement | null>(null);

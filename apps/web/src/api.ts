@@ -221,6 +221,30 @@ export const api = {
     }
     return (await res.json()) as SendResultDTO;
   },
+  // Manual operator-authored follow-up reply (after a thread was already
+  // replied to). Same guarded send path + 412 → SendBlockedError handling.
+  sendManualReply: async (threadId: string, body: string): Promise<SendResultDTO> => {
+    const res = await fetch(`${API_URL}/threads/${threadId}/reply`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body }),
+    });
+    if (!res.ok) {
+      let message = res.statusText;
+      let reason = "failed";
+      try {
+        const b = (await res.json()) as { error?: string; reason?: string };
+        if (b.error) message = b.error;
+        if (b.reason) reason = b.reason;
+      } catch {
+        /* non-JSON */
+      }
+      if (res.status === 412) throw new SendBlockedError(res.status, message, reason);
+      throw new ApiError(res.status, message);
+    }
+    return (await res.json()) as SendResultDTO;
+  },
 
   // ── Feedback ──────────────────────────────────────────────────────────────
   submitFeedback: (message: string, page: string) =>

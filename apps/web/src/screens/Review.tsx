@@ -3,7 +3,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import DOMPurify from "dompurify";
 import type {
   AttachmentDTO,
-  BasedOnItemDTO,
   ConfidenceLevel,
   DraftDTO,
   MessageDTO,
@@ -449,14 +448,6 @@ function SummaryCard({ summary }: { summary: string }) {
   );
 }
 
-const basedOnLabel: Record<BasedOnItemDTO["kind"], string> = {
-  canonical: "Canonical",
-  example: "Past reply",
-  policy: "Policy",
-  order: "Order",
-  tone: "Tone",
-};
-
 function DraftComposer({
   threadId,
   isCustomer,
@@ -522,9 +513,9 @@ function DraftComposer({
     setNeedsReconnect(false);
     try {
       await api.approveSend(draft.id, body);
-      // Reflect the actually-sent text so the "Replied" card matches what the
-      // customer received (not the original AI draft).
-      setDraft({ ...draft, body, status: "sent" });
+      // Sent — drop into the follow-up composer (an empty box) so the operator
+      // can send another message if needed, rather than staring at the just-sent
+      // text. The sent message itself now lives in the conversation thread.
       setSent(true);
     } catch (e) {
       if (e instanceof SendBlockedError) {
@@ -545,20 +536,18 @@ function DraftComposer({
     padding: isMobile ? "14px 16px 16px" : "16px 26px 18px",
   };
 
-  // Terminal "replied" state — no editable composer once a reply was sent.
-  if ((isSent || sent) && draft) {
+  // Once a reply has been sent, the sent message lives in the conversation
+  // thread above. The composer becomes a fresh, empty follow-up box so the
+  // operator can send another message if needed (it does not keep showing the
+  // text that was just sent).
+  if (isSent || sent) {
     return (
-      <div style={footerStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-soft-fg)" }}>✓ Replied</span>
-          <button onClick={onSent} style={{ marginLeft: "auto", cursor: "pointer", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-2)", fontSize: 13, fontWeight: 600, padding: "7px 13px", borderRadius: 8 }}>
-            Back to inbox
-          </button>
-        </div>
-        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "12px 14px", fontSize: 13.5, color: "var(--text-2)", lineHeight: 1.55, whiteSpace: "pre-wrap", maxHeight: 220, overflow: "auto" }}>
-          {draft.body}
-        </div>
-      </div>
+      <FollowUpComposer
+        threadId={threadId}
+        canSend={canSend}
+        isMobile={isMobile}
+        onBack={onSent}
+      />
     );
   }
 
@@ -570,24 +559,6 @@ function DraftComposer({
         {draft && <span style={{ fontSize: 12, color: "var(--text-3)" }}>· {draft.confidence ?? "—"} confidence</span>}
         {isMobile && draft && <ConfidenceDots confidence={draft.confidence} />}
       </div>
-
-      {(() => {
-        // Hide the noisy "Past reply" (example) provenance pills from the
-        // composer — retrieval often returns several and they clutter the draft
-        // section. The full provenance is still recorded on the draft for
-        // auditing; we just don't surface example pills to the operator.
-        const pills = draft ? draft.basedOn.filter((b) => b.kind !== "example") : [];
-        if (pills.length === 0) return null;
-        return (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-            {pills.slice(0, 6).map((b, i) => (
-              <span key={i} title={b.detail ?? undefined} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 999, background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-3)" }}>
-                {basedOnLabel[b.kind]}: {b.label}
-              </span>
-            ))}
-          </div>
-        );
-      })()}
 
       {loading && !draft ? (
         <div style={{ background: "var(--surface)", border: "1px dashed var(--border)", borderRadius: 10, padding: "18px", textAlign: "center", fontSize: 13.5, color: "var(--text-3)" }}>
@@ -663,6 +634,103 @@ function DraftComposer({
             Dismiss · mark as noise
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Shown once a thread has been replied to: an empty composer for sending a
+// manual follow-up. Each send goes through the same guarded server send path
+// (it creates an operator-authored draft and sends it) — never auto-send.
+function FollowUpComposer({
+  threadId,
+  canSend,
+  isMobile,
+  onBack,
+}: {
+  threadId: string;
+  canSend: boolean;
+  isMobile: boolean;
+  onBack: () => void;
+}) {
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
+  const [justSent, setJustSent] = useState(false);
+
+  const send = async () => {
+    if (sending || !body.trim()) return;
+    setSending(true);
+    setError(null);
+    setNeedsReconnect(false);
+    try {
+      await api.sendManualReply(threadId, body);
+      setBody("");
+      setJustSent(true);
+    } catch (e) {
+      if (e instanceof SendBlockedError) {
+        setNeedsReconnect(true);
+        setError(e.message);
+      } else {
+        setError(e instanceof Error ? e.message : "Send failed.");
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        flex: "none",
+        borderTop: "1px solid var(--border)",
+        background: "var(--surface-3)",
+        padding: isMobile ? "14px 16px 16px" : "16px 26px 18px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 11 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-soft-fg)" }}>✓ Replied</span>
+        <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>
+          {justSent ? "Follow-up sent." : "Send a follow-up below if needed."}
+        </span>
+        <button
+          onClick={onBack}
+          style={{ marginLeft: "auto", cursor: "pointer", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-2)", fontSize: 13, fontWeight: 600, padding: "7px 13px", borderRadius: 8 }}
+        >
+          Back to inbox
+        </button>
+      </div>
+
+      <textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        rows={isMobile ? 5 : 6}
+        placeholder="Write a follow-up reply…"
+        style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)", fontSize: 14, fontFamily: "var(--sans)", lineHeight: 1.55, resize: "vertical" }}
+      />
+
+      {error && (
+        <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--warn-tx)" }}>
+          {error}
+          {needsReconnect && (
+            <>
+              {" "}
+              <a href={api.gmailConnectUrl()} style={{ color: "var(--accent)", fontWeight: 600 }}>Reconnect Gmail →</a>
+            </>
+          )}
+        </div>
+      )}
+
+      <div style={{ marginTop: 14 }}>
+        <button
+          onClick={() => void send()}
+          disabled={sending || !canSend || !body.trim()}
+          title={canSend ? undefined : "Reconnect Gmail to enable sending"}
+          style={{ width: isMobile ? "100%" : "auto", border: "none", cursor: sending || !canSend || !body.trim() ? "default" : "pointer", background: "var(--accent)", color: "var(--accent-fg)", fontSize: 14.5, fontWeight: 600, padding: "12px 22px", borderRadius: 9, opacity: sending || !canSend || !body.trim() ? 0.5 : 1 }}
+        >
+          {sending ? "Sending…" : "Send follow-up"}
+        </button>
       </div>
     </div>
   );
