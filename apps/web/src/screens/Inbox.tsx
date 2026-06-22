@@ -36,7 +36,10 @@ export function Inbox() {
   const [category, setCategory] = useState<string | null>(null);
   const [catMenuOpen, setCatMenuOpen] = useState(false);
   const [threads, setThreads] = useState<ThreadSummaryDTO[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [reload, setReload] = useState(0);
   const [counts, setCounts] = useState({
     customer: 0,
@@ -57,7 +60,7 @@ export function Inbox() {
     };
   }, [completedAt, reload]);
 
-  // Thread list for the active tab/filters.
+  // First page for the active tab/filters (replaces the list).
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -67,9 +70,12 @@ export function Inbox() {
           tab,
           status: tab === "customer" ? STATUS_QUERY[statusFilter] : undefined,
           category: tab === "customer" ? (category ?? undefined) : undefined,
+          page: 1,
         });
         if (!active) return;
         setThreads(res.items);
+        setTotal(res.total);
+        setPage(1);
       } finally {
         if (active) setLoading(false);
       }
@@ -79,10 +85,31 @@ export function Inbox() {
     };
   }, [tab, statusFilter, category, completedAt, reload]);
 
-  const reclassifyNotNoise = async (id: string) => {
+  const loadMore = async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const next = page + 1;
+      const res = await api.listThreads({
+        tab,
+        status: tab === "customer" ? STATUS_QUERY[statusFilter] : undefined,
+        category: tab === "customer" ? (category ?? undefined) : undefined,
+        page: next,
+      });
+      setThreads((prev) => [...prev, ...res.items]);
+      setTotal(res.total);
+      setPage(next);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const hasMore = threads.length < total;
+
+  const reclassify = async (id: string, isCustomer: boolean) => {
     setThreads((prev) => prev.filter((t) => t.id !== id)); // optimistic
     try {
-      await api.reclassifyThread(id, true);
+      await api.reclassifyThread(id, isCustomer);
     } finally {
       setReload((n) => n + 1);
     }
@@ -295,7 +322,8 @@ export function Inbox() {
           <NoiseList
             rows={threads}
             loading={loading}
-            onNotNoise={reclassifyNotNoise}
+            onNotNoise={(id) => reclassify(id, true)}
+            onOpen={(id) => navigate(`/review/${id}`)}
           />
         ) : showCaughtUp ? (
           <CaughtUp />
@@ -328,6 +356,29 @@ export function Inbox() {
             }}
           >
             {loading ? "Loading…" : "No threads here yet. Run a sync to pull in your Gmail inbox."}
+          </div>
+        )}
+
+        {hasMore && (
+          <div style={{ display: "flex", justifyContent: "center", padding: "18px 0 4px" }}>
+            <button
+              onClick={() => void loadMore()}
+              disabled={loadingMore}
+              style={{
+                cursor: loadingMore ? "default" : "pointer",
+                fontSize: 13,
+                fontWeight: 600,
+                padding: "9px 18px",
+                borderRadius: 9,
+                border: "1px solid var(--border)",
+                background: "var(--surface)",
+                color: "var(--text-2)",
+              }}
+            >
+              {loadingMore
+                ? "Loading…"
+                : `Load more (${threads.length} of ${total})`}
+            </button>
           </div>
         )}
       </div>
@@ -858,10 +909,12 @@ function NoiseList({
   rows,
   loading,
   onNotNoise,
+  onOpen,
 }: {
   rows: ThreadSummaryDTO[];
   loading: boolean;
   onNotNoise: (id: string) => void;
+  onOpen: (id: string) => void;
 }) {
   return (
     <div>
@@ -895,7 +948,12 @@ function NoiseList({
           }}
         >
           {rows.map((row) => (
-            <NoiseRow key={row.id} row={row} onNotNoise={onNotNoise} />
+            <NoiseRow
+              key={row.id}
+              row={row}
+              onNotNoise={onNotNoise}
+              onOpen={onOpen}
+            />
           ))}
         </div>
       )}
@@ -906,20 +964,28 @@ function NoiseList({
 function NoiseRow({
   row,
   onNotNoise,
+  onOpen,
 }: {
   row: ThreadSummaryDTO;
   onNotNoise: (id: string) => void;
+  onOpen: (id: string) => void;
 }) {
   const domain = row.customerEmail?.split("@")[1] ?? "unknown";
+  const [hover, setHover] = useState(false);
   return (
     <div
+      onClick={() => onOpen(row.id)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
+        cursor: "pointer",
         display: "flex",
         alignItems: "center",
         gap: 13,
         padding: "13px 16px",
         borderBottom: "1px solid var(--border-2)",
-        opacity: 0.82,
+        opacity: hover ? 1 : 0.82,
+        background: hover ? "var(--hover)" : "transparent",
       }}
     >
       <div
@@ -1000,7 +1066,10 @@ function NoiseRow({
         {domain}
       </span>
       <button
-        onClick={() => onNotNoise(row.id)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onNotNoise(row.id);
+        }}
         style={{
           flex: "none",
           cursor: "pointer",

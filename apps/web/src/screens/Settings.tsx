@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { api, type GmailStatus } from "../api";
+import { api, type GmailStatus, type SenderRuleDTO } from "../api";
 import { useAuth } from "../auth";
 import { MailIcon } from "../icons";
 
@@ -186,6 +186,8 @@ export function Settings() {
           </div>
         </div>
 
+        <SenderRulesCard />
+
         <button
           onClick={() => void logout()}
           style={{
@@ -201,6 +203,207 @@ export function Settings() {
         >
           Sign out
         </button>
+      </div>
+    </div>
+  );
+}
+
+function SenderRulesCard() {
+  const [rules, setRules] = useState<SenderRuleDTO[]>([]);
+  const [pattern, setPattern] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = () =>
+    api
+      .listSenderRules()
+      .then(setRules)
+      .catch(() => setRules([]));
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const add = async (rule: "allow" | "block") => {
+    const p = pattern.trim();
+    if (!p || busy) return;
+    setBusy(true);
+    try {
+      await api.addSenderRule(p, rule);
+      setPattern("");
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+  const remove = async (id: string) => {
+    setRules((prev) => prev.filter((r) => r.id !== id));
+    try {
+      await api.deleteSenderRule(id);
+    } finally {
+      await load();
+    }
+  };
+
+  const allow = rules.filter((r) => r.rule === "allow");
+  const block = rules.filter((r) => r.rule === "block");
+
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 14,
+        padding: "20px 22px",
+        boxShadow: "var(--shadow)",
+        marginBottom: 18,
+      }}
+    >
+      <div style={{ fontSize: 15.5, fontWeight: 700, marginBottom: 4 }}>
+        Sender rules
+      </div>
+      <div style={{ fontSize: 12.5, color: "var(--text-3)", marginBottom: 16 }}>
+        The triage gate. Allowed senders are always treated as customers; filtered
+        senders are always treated as noise. Everything else is judged by the AI.
+        Use a domain (e.g. <span style={{ fontFamily: "var(--mono)" }}>getredo.com</span>)
+        or a full address.
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+        <input
+          value={pattern}
+          onChange={(e) => setPattern(e.target.value)}
+          placeholder="domain.com or name@domain.com"
+          style={{
+            flex: 1,
+            minWidth: 180,
+            height: 36,
+            padding: "0 12px",
+            borderRadius: 9,
+            border: "1px solid var(--border)",
+            background: "var(--surface-2)",
+            color: "var(--text)",
+            fontSize: 13,
+            fontFamily: "var(--mono)",
+          }}
+        />
+        <button
+          onClick={() => void add("allow")}
+          disabled={busy}
+          style={ruleBtn("var(--accent-soft-bg)", "var(--accent-soft-fg)")}
+        >
+          + Always a customer
+        </button>
+        <button
+          onClick={() => void add("block")}
+          disabled={busy}
+          style={ruleBtn("var(--cat-exchange-bg)", "var(--cat-exchange-fg)")}
+        >
+          + Always filter out
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 18,
+        }}
+      >
+        <RuleColumn
+          title={`Always a customer · ${allow.length}`}
+          color="var(--conf-high)"
+          rules={allow}
+          onRemove={remove}
+        />
+        <RuleColumn
+          title={`Always filter out · ${block.length}`}
+          color="var(--cat-exchange-fg)"
+          rules={block}
+          onRemove={remove}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ruleBtn(bg: string, fg: string): React.CSSProperties {
+  return {
+    cursor: "pointer",
+    fontSize: 12.5,
+    fontWeight: 600,
+    padding: "0 13px",
+    height: 36,
+    borderRadius: 9,
+    border: "1px solid var(--border)",
+    background: bg,
+    color: fg,
+    whiteSpace: "nowrap",
+  };
+}
+
+function RuleColumn({
+  title,
+  color,
+  rules,
+  onRemove,
+}: {
+  title: string;
+  color: string;
+  rules: SenderRuleDTO[];
+  onRemove: (id: string) => void;
+}) {
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 11.5,
+          fontWeight: 700,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          color,
+          marginBottom: 10,
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+        {rules.length === 0 && (
+          <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>None yet.</span>
+        )}
+        {rules.map((r) => (
+          <span
+            key={r.id}
+            title={r.note ?? undefined}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              fontFamily: "var(--mono)",
+              fontSize: 12,
+              padding: "4px 6px 4px 10px",
+              borderRadius: 999,
+              background: "var(--surface-2)",
+              border: "1px solid var(--border)",
+              color: "var(--text-2)",
+            }}
+          >
+            {r.pattern}
+            <button
+              onClick={() => onRemove(r.id)}
+              aria-label="Remove rule"
+              style={{
+                cursor: "pointer",
+                border: "none",
+                background: "transparent",
+                color: "var(--text-3)",
+                fontSize: 14,
+                lineHeight: 1,
+                padding: "0 2px",
+              }}
+            >
+              ✕
+            </button>
+          </span>
+        ))}
       </div>
     </div>
   );

@@ -59,6 +59,18 @@ export function Review() {
   const isMobile = useIsMobile();
   const [thread, setThread] = useState<ThreadDetailDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reclassifying, setReclassifying] = useState(false);
+
+  const reclassify = async (isCustomer: boolean) => {
+    if (!id || reclassifying) return;
+    setReclassifying(true);
+    try {
+      await api.reclassifyThread(id, isCustomer);
+      navigate("/inbox");
+    } catch {
+      setReclassifying(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -424,6 +436,44 @@ export function Review() {
               >
                 Regenerate
               </button>
+              {thread.isCustomer === false ? (
+                <button
+                  onClick={() => void reclassify(true)}
+                  disabled={reclassifying}
+                  style={{
+                    marginLeft: "auto",
+                    cursor: reclassifying ? "default" : "pointer",
+                    border: "1px solid var(--border)",
+                    background: "var(--accent-soft-bg)",
+                    color: "var(--accent-soft-fg)",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    padding: "10px 15px",
+                    borderRadius: 9,
+                  }}
+                >
+                  ✓ Mark as customer request
+                </button>
+              ) : (
+                <button
+                  onClick={() => void reclassify(false)}
+                  disabled={reclassifying}
+                  title="Move this thread to Filtered out"
+                  style={{
+                    marginLeft: "auto",
+                    cursor: reclassifying ? "default" : "pointer",
+                    border: "none",
+                    background: "transparent",
+                    color: "var(--text-3)",
+                    fontSize: 14,
+                    fontWeight: 500,
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                  }}
+                >
+                  Dismiss · mark as noise
+                </button>
+              )}
             </div>
           </div>
         </div>

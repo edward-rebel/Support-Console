@@ -46,6 +46,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+export interface SenderRuleDTO {
+  id: string;
+  pattern: string;
+  rule: "allow" | "block";
+  note: string | null;
+}
+
 export interface GmailStatus {
   connected: boolean;
   account: string;
@@ -100,6 +107,14 @@ export const api = {
     request<{ started: boolean; running: boolean }>("/triage/run", {
       method: "POST",
     }),
+  listSenderRules: () => request<SenderRuleDTO[]>("/sender-rules"),
+  addSenderRule: (pattern: string, rule: "allow" | "block", note?: string) =>
+    request<SenderRuleDTO>("/sender-rules", {
+      method: "POST",
+      body: JSON.stringify({ pattern, rule, note }),
+    }),
+  deleteSenderRule: (id: string) =>
+    request<{ ok: boolean }>(`/sender-rules/${id}`, { method: "DELETE" }),
   sync: () =>
     request<{ started: boolean } & SyncStatus>("/sync", { method: "POST" }),
   syncStatus: () => request<SyncStatus>("/sync/status"),
