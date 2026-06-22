@@ -234,6 +234,20 @@ export function Review() {
     }
   };
 
+  // Re-pull the thread after a send so the just-sent outbound message shows up
+  // in the conversation immediately (the send-bottom scroll effect then brings
+  // it into view). Without this the customer gets the reply but it doesn't
+  // appear here until the thread is reopened.
+  const refreshThread = async () => {
+    if (!id) return;
+    try {
+      const t = await api.getThread(id);
+      setThread(t);
+    } catch {
+      /* keep the current view on a transient refresh failure */
+    }
+  };
+
   useEffect(() => {
     if (!id) return;
     let active = true;
@@ -339,6 +353,7 @@ export function Review() {
       reclassifying={reclassifying}
       onReclassify={reclassify}
       onSent={() => navigate("/inbox")}
+      onReplySent={refreshThread}
       isMobile={isMobile}
     />
   );
@@ -459,6 +474,7 @@ function DraftComposer({
   reclassifying,
   onReclassify,
   onSent,
+  onReplySent,
   isMobile,
 }: {
   threadId: string;
@@ -471,6 +487,7 @@ function DraftComposer({
   reclassifying: boolean;
   onReclassify: (isCustomer: boolean) => void;
   onSent: () => void;
+  onReplySent: () => void | Promise<void>;
   isMobile: boolean;
 }) {
   const [body, setBody] = useState(draft?.body ?? "");
@@ -513,9 +530,10 @@ function DraftComposer({
     setNeedsReconnect(false);
     try {
       await api.approveSend(draft.id, body);
-      // Sent — drop into the follow-up composer (an empty box) so the operator
-      // can send another message if needed, rather than staring at the just-sent
-      // text. The sent message itself now lives in the conversation thread.
+      // Sent — pull the thread so the just-sent message appears in the
+      // conversation, then drop into the follow-up composer (an empty box) so
+      // the operator can send another message if needed.
+      void onReplySent();
       setSent(true);
     } catch (e) {
       if (e instanceof SendBlockedError) {
@@ -547,6 +565,7 @@ function DraftComposer({
         canSend={canSend}
         isMobile={isMobile}
         onBack={onSent}
+        onReplySent={onReplySent}
       />
     );
   }
@@ -647,11 +666,13 @@ function FollowUpComposer({
   canSend,
   isMobile,
   onBack,
+  onReplySent,
 }: {
   threadId: string;
   canSend: boolean;
   isMobile: boolean;
   onBack: () => void;
+  onReplySent: () => void | Promise<void>;
 }) {
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -668,6 +689,8 @@ function FollowUpComposer({
       await api.sendManualReply(threadId, body);
       setBody("");
       setJustSent(true);
+      // Refresh the conversation so the follow-up appears in the thread.
+      void onReplySent();
     } catch (e) {
       if (e instanceof SendBlockedError) {
         setNeedsReconnect(true);
