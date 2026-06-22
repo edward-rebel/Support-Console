@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, asc, desc, eq, ilike, isNull, notInArray, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull, or, type SQL, sql } from "drizzle-orm";
 import { categories, messages, threads } from "@ms/db";
 import type {
   AttachmentDTO,
@@ -37,6 +37,21 @@ function asConfidence(value: string | null): ConfidenceLevel | null {
     : null;
 }
 
+// A thread is "unanswered" when the most recent message in it is inbound (the
+// customer is waiting on us). This correctly treats threads we already replied
+// to — whether via this app or historically straight from Gmail — as answered,
+// since their latest message is outbound. A new customer reply flips a thread
+// back to unanswered automatically.
+function latestMessageInbound(): SQL {
+  return sql`(
+    select m.direction
+    from messages m
+    where m.thread_id = ${threads.id}
+    order by coalesce(m.gmail_internal_date, m.created_at) desc, m.id desc
+    limit 1
+  ) = 'inbound'`;
+}
+
 export function registerThreadRoutes(app: FastifyInstance): void {
   const { db } = app.appCtx;
 
@@ -59,10 +74,12 @@ export function registerThreadRoutes(app: FastifyInstance): void {
     const statusParam = request.query.status;
 
     const conds: SQL[] = [];
-    // "open" is a virtual filter: any unanswered request — everything except
-    // already-sent or manually-closed. Otherwise an exact status match.
+    // "open" is a virtual filter: unanswered requests only — not manually
+    // closed, and the latest message is from the customer (inbound). Otherwise
+    // an exact status match.
     if (statusParam === "open") {
-      conds.push(notInArray(threads.status, ["sent", "closed"]));
+      conds.push(sql`${threads.status} <> 'closed'`);
+      conds.push(latestMessageInbound());
     } else if (THREAD_STATUSES.includes(statusParam as ThreadStatus)) {
       conds.push(eq(threads.status, statusParam as ThreadStatus));
     }
@@ -163,8 +180,9 @@ export function registerThreadRoutes(app: FastifyInstance): void {
           customer: sql<number>`count(*) filter (where ${threads.isCustomer} is true or ${threads.isCustomer} is null)::int`,
           noise: sql<number>`count(*) filter (where ${threads.isCustomer} is false)::int`,
           pending: sql<number>`count(*) filter (where ${threads.isCustomer} is null)::int`,
-          // "Open" = customer requests still unanswered (not sent, not closed).
-          open: sql<number>`count(*) filter (where (${threads.isCustomer} is true or ${threads.isCustomer} is null) and ${threads.status} not in ('sent','closed'))::int`,
+          // "Open" = customer requests still unanswered: not closed, and the
+          // latest message is inbound (customer awaiting a reply).
+          open: sql<number>`count(*) filter (where (${threads.isCustomer} is true or ${threads.isCustomer} is null) and ${threads.status} <> 'closed' and ${latestMessageInbound()})::int`,
         })
         .from(threads);
       const r = rows[0];

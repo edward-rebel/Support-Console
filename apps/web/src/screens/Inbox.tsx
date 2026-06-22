@@ -39,6 +39,11 @@ const STATUS_QUERY: Record<StatusFilter, string | undefined> = {
   sent: "sent",
 };
 
+// Open is the default landing filter on every fresh page load. Within a single
+// page load we still restore the last-used filter when navigating thread → back
+// (so browsing Sent and opening a thread returns you to Sent). Resets on reload.
+let statusFilterInitialized = false;
+
 export function Inbox() {
   const navigate = useNavigate();
   const { syncing, completedAt } = useSync();
@@ -51,9 +56,13 @@ export function Inbox() {
     const v = sessionStorage.getItem("inbox.tab");
     return v === "noise" || v === "customer" ? v : "customer";
   });
-  // Default to "Open" (unanswered customer requests). Legacy persisted value
-  // "needs" maps to "open".
+  // Default to "Open" (unanswered customer requests) on a fresh page load.
+  // After that, restore the last-used filter for thread → back navigation.
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    if (!statusFilterInitialized) {
+      statusFilterInitialized = true;
+      return "open";
+    }
     const v = sessionStorage.getItem("inbox.status");
     if (v === "needs") return "open";
     return v === "open" || v === "all" || v === "sent" ? v : "open";
