@@ -106,6 +106,10 @@ export const threads = pgTable(
     snippet: text("snippet"), // one-line preview for the inbox row
     status: threadStatusEnum("status").default("new").notNull(),
     confidence: text("confidence"), // high|medium|low, set when a draft exists (Phase 3)
+    // The Shopify order pinned to this thread (e.g. "#21142") — set when an order
+    // is resolved (manually or extracted from the email) so context survives a
+    // reload without re-resolving. Read-only reference; not a write to Shopify.
+    shopifyOrderName: text("shopify_order_name"),
     lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
     ...timestamps,
   },

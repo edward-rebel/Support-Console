@@ -1,0 +1,55 @@
+/* Constrains sanitized email HTML so rich messages render cleanly inside the
+   thread column instead of forcing huge widths or overflowing. */
+.email-html {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.email-html p {
+  margin: 0 0 10px;
+}
+.email-html a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.email-html img {
+  max-width: 100%;
+  height: auto;
+}
+.email-html table {
+  max-width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.email-html td,
+.email-html th {
+  padding: 2px 6px;
+}
+.email-html blockquote {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+  color: var(--text-3);
+}
+.email-html ul,
+.email-html ol {
+  margin: 0 0 10px;
+  padding-left: 22px;
+}
+.email-html h1,
+.email-html h2,
+.email-html h3 {
+  font-size: 16px;
+  margin: 12px 0 6px;
+}
+/* Plain-text bodies: preserve the author's line breaks. */
+.email-text {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

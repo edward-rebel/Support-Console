@@ -1,0 +1,1 @@
+ALTER TABLE "threads" ADD COLUMN "shopify_order_name" text;

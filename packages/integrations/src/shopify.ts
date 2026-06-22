@@ -12,6 +12,18 @@ export function hasShopify(cfg: IntegrationsConfig): boolean {
   );
 }
 
+// Pull a Shopify order number out of free text (email subject/body). Requires a
+// "#" prefix or an "order …" cue so bare 5-digit numbers (zip codes, etc.) don't
+// false-match. Returns the order name with a leading "#", or null.
+export function extractOrderNumber(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const hash = text.match(/#\s?(\d{4,7})\b/);
+  if (hash) return `#${hash[1]}`;
+  const ord = text.match(/orders?\s*(?:no\.?|number|num)?[:#\s]*(\d{4,7})\b/i);
+  if (ord) return `#${ord[1]}`;
+  return null;
+}
+
 // ── token manager ────────────────────────────────────────────────────────────
 // Shopify's client-credentials grant returns a ~24h Admin API token with NO
 // refresh token. We mint on demand and cache in memory per store, re-minting a

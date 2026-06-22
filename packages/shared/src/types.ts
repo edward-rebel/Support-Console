@@ -129,10 +129,15 @@ export interface ShopifyCustomerDTO {
   createdAt: string;
 }
 
+export type ShopifyMatch = "pinned" | "email" | "order" | null;
+
 export interface ShopifyContextDTO {
   found: boolean;
   customer: ShopifyCustomerDTO | null;
   orders: ShopifyOrderDTO[];
+  // How the context was resolved for a thread (email vs order-number fallback vs
+  // a previously pinned order). Null for ad-hoc lookups.
+  matchedBy?: ShopifyMatch;
 }
 
 export interface KnowledgeBuildStatus {

@@ -169,10 +169,14 @@ export const api = {
   // ── Shopify (read-only) ───────────────────────────────────────────────────
   shopifyStatus: () =>
     request<{ configured: boolean; store: string | null }>("/shopify/status"),
-  shopifyContext: (params: { email?: string; order?: string }) => {
-    const qs = new URLSearchParams();
-    if (params.email) qs.set("email", params.email);
-    if (params.order) qs.set("order", params.order);
-    return request<ShopifyContextDTO>(`/shopify/context?${qs.toString()}`);
-  },
+  // Thread-scoped: resolves pinned order → email → order # in subject/body, and
+  // persists a resolved order so it survives a reload.
+  threadShopify: (threadId: string) =>
+    request<ShopifyContextDTO>(`/threads/${threadId}/shopify`),
+  // Manual lookup for a thread — pins the order.
+  threadShopifyOrder: (threadId: string, order: string) =>
+    request<ShopifyContextDTO>(`/threads/${threadId}/shopify/order`, {
+      method: "POST",
+      body: JSON.stringify({ order }),
+    }),
 };

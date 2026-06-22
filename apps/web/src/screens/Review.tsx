@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import DOMPurify from "dompurify";
 import type {
   MessageDTO,
   ShopifyContextDTO,
@@ -9,43 +10,34 @@ import type {
 import { api } from "../api";
 import { useIsMobile } from "../useIsMobile";
 import { ChevronLeftIcon, BagIcon } from "../icons";
-import {
-  avatarTokens,
-  categoryTokens,
-  initialsFrom,
-} from "../tokens";
+import { avatarTokens, categoryTokens, initialsFrom } from "../tokens";
 
-function splitParagraphs(raw: string): string[] {
-  return raw
-    .split(/\n{2,}/)
-    .map((p) => p.replace(/\s*\n\s*/g, " ").trim())
-    .filter(Boolean);
-}
-
-// Safely turn an HTML email body into readable text. DOMParser does NOT execute
-// scripts, and we only read textContent, so no markup is rendered.
-function htmlToText(html: string): string {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  doc.querySelectorAll("style, script, head").forEach((el) => el.remove());
-  // Give block elements line breaks so paragraphs survive.
-  doc.querySelectorAll("p, br, div, tr, li, h1, h2, h3").forEach((el) => {
-    el.append("\n");
-  });
-  return (doc.body.textContent ?? "")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-// Message body as paragraphs: prefer plain text, fall back to extracted HTML.
-function paragraphs(msg: MessageDTO): string[] {
-  const text = msg.bodyText?.trim();
-  if (text) return splitParagraphs(text);
-  if (msg.bodyHtml) {
-    const extracted = htmlToText(msg.bodyHtml);
-    if (extracted) return splitParagraphs(extracted);
+// Open any links in sanitized email bodies safely in a new tab.
+DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.tagName === "A") {
+    node.setAttribute("target", "_blank");
+    node.setAttribute("rel", "noopener noreferrer");
   }
-  return ["(This message has no readable text content.)"];
+});
+
+// Sanitize email HTML for rendering: DOMPurify removes scripts/handlers; we also
+// drop inline styles/classes and layout attributes so messages render in our own
+// typography instead of forcing their own widths/colors.
+function sanitizeEmailHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    FORBID_TAGS: ["style", "script", "iframe", "link", "meta", "head", "title", "form", "input", "button", "object", "embed", "svg"],
+    FORBID_ATTR: ["style", "class", "width", "height", "align", "bgcolor", "background", "srcset"],
+    ALLOW_DATA_ATTR: false,
+  });
+}
+
+// "Name <email>" → display parts.
+function parseAddress(raw: string | null): { name: string | null; email: string | null } {
+  if (!raw) return { name: null, email: null };
+  const m = raw.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
+  if (m) return { name: (m[1] ?? "").trim() || null, email: (m[2] ?? "").trim() || null };
+  if (raw.includes("@")) return { name: null, email: raw.trim() };
+  return { name: raw.trim() || null, email: null };
 }
 
 function formatTime(iso: string | null): string {
@@ -58,6 +50,117 @@ function formatTime(iso: string | null): string {
   });
 }
 
+function hasBody(msg: MessageDTO): boolean {
+  return Boolean(msg.bodyText?.trim() || msg.bodyHtml?.trim());
+}
+
+function MessageBody({ msg }: { msg: MessageDTO }) {
+  // Prefer plain text (preserve line breaks); fall back to sanitized HTML.
+  const text = msg.bodyText?.trim();
+  if (text) {
+    return <div className="email-text">{text}</div>;
+  }
+  if (msg.bodyHtml?.trim()) {
+    return (
+      <div
+        className="email-html"
+        dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(msg.bodyHtml) }}
+      />
+    );
+  }
+  return (
+    <div style={{ fontSize: 14, color: "var(--text-3)", fontStyle: "italic" }}>
+      (This message has no readable text content.)
+    </div>
+  );
+}
+
+function MessageCard({
+  msg,
+  fallbackName,
+}: {
+  msg: MessageDTO;
+  fallbackName: string | null;
+}) {
+  const outbound = msg.direction === "outbound";
+  const addr = parseAddress(msg.fromAddress);
+  const name = outbound
+    ? addr.name ?? "Molly & Stitch"
+    : addr.name ?? fallbackName ?? addr.email ?? "Customer";
+  const av = avatarTokens(addr.email ?? name);
+
+  return (
+    <div
+      style={{
+        border: "1px solid var(--border)",
+        borderRadius: 12,
+        background: outbound ? "var(--accent-soft-bg)" : "var(--surface)",
+        padding: "13px 15px",
+        marginBottom: 12,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <div
+          style={{
+            flex: "none",
+            width: 30,
+            height: 30,
+            borderRadius: "50%",
+            background: outbound ? "var(--accent)" : av.bg,
+            color: outbound ? "var(--accent-fg)" : av.fg,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: 600,
+            fontSize: 12,
+          }}
+        >
+          {outbound ? "MS" : initialsFrom(name, addr.email)}
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 600, fontSize: 13.5, color: "var(--text)" }}>
+              {name}
+            </span>
+            {outbound && (
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                  letterSpacing: "0.03em",
+                  textTransform: "uppercase",
+                  color: "var(--accent-soft-fg)",
+                }}
+              >
+                Sent
+              </span>
+            )}
+            {addr.email && (
+              <span
+                style={{
+                  fontSize: 11.5,
+                  color: "var(--text-3)",
+                  fontFamily: "var(--mono)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  minWidth: 0,
+                }}
+              >
+                {addr.email}
+              </span>
+            )}
+          </div>
+        </div>
+        <span style={{ flex: "none", fontSize: 12, color: "var(--text-3)" }}>
+          {formatTime(msg.gmailInternalDate)}
+        </span>
+      </div>
+      <MessageBody msg={msg} />
+    </div>
+  );
+}
+
 export function Review() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -65,6 +168,7 @@ export function Review() {
   const [thread, setThread] = useState<ThreadDetailDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reclassifying, setReclassifying] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const reclassify = async (isCustomer: boolean) => {
     if (!id || reclassifying) return;
@@ -93,6 +197,13 @@ export function Review() {
     };
   }, [id]);
 
+  // Jump to the newest message (bottom) once the thread loads, like an inbox.
+  useEffect(() => {
+    if (thread && scrollRef.current && !isMobile) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [thread, isMobile]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") navigate("/inbox");
@@ -109,13 +220,9 @@ export function Review() {
   }
 
   const cat = categoryTokens(thread.category?.slug);
-  const av = avatarTokens(thread.customerEmail ?? thread.id);
-  const customerMessages = thread.messages.filter(
-    (m) => m.direction === "inbound",
-  );
-  const shown = customerMessages.length > 0 ? customerMessages : thread.messages;
-  const latest = shown[shown.length - 1];
-  const earlierCount = shown.length - 1;
+  // Show the full back-and-forth, oldest first / newest last (API returns asc).
+  const conversation = thread.messages.filter(hasBody);
+  const shown = conversation.length > 0 ? conversation : thread.messages;
 
   return (
     <div
@@ -236,130 +343,49 @@ export function Review() {
             display: "flex",
             flexDirection: "column",
             borderRight: isMobile ? "none" : "1px solid var(--border)",
-            background: "var(--surface)",
+            background: "var(--surface-2)",
           }}
         >
           <div
+            ref={scrollRef}
             style={{
               flex: isMobile ? "none" : 1,
               minHeight: 0,
               overflow: isMobile ? "visible" : "auto",
-              padding: isMobile ? "18px 16px" : "24px 30px",
+              padding: isMobile ? "16px 14px" : "22px 26px",
             }}
           >
-            {earlierCount > 0 && (
-              <div style={{ textAlign: "center", marginBottom: 20 }}>
+            {shown.length > 1 && (
+              <div style={{ textAlign: "center", marginBottom: 16 }}>
                 <span
                   style={{
-                    fontSize: 12.5,
+                    fontSize: 12,
                     color: "var(--text-3)",
-                    background: "var(--surface-2)",
-                    padding: "4px 13px",
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    padding: "3px 12px",
                     borderRadius: 999,
                   }}
                 >
-                  Earlier in conversation · {earlierCount}{" "}
-                  {earlierCount === 1 ? "message" : "messages"}
+                  {shown.length} messages in this conversation
                 </span>
               </div>
             )}
-            {latest && (
-              <div style={{ display: "flex", gap: 14, marginBottom: 22 }}>
-                <div
-                  style={{
-                    flex: "none",
-                    width: 40,
-                    height: 40,
-                    borderRadius: "50%",
-                    background: av.bg,
-                    color: av.fg,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontWeight: 600,
-                    fontSize: 14,
-                  }}
-                >
-                  {initialsFrom(thread.customerName, thread.customerEmail)}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "baseline",
-                      gap: 9,
-                      marginBottom: isMobile ? 1 : 4,
-                      flexWrap: isMobile ? "wrap" : "nowrap",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontWeight: 600,
-                        fontSize: 15,
-                        color: "var(--text)",
-                        flex: isMobile ? 1 : "none",
-                        minWidth: 0,
-                      }}
-                    >
-                      {thread.customerName ?? thread.customerEmail ?? "Customer"}
-                    </span>
-                    <span
-                      style={{
-                        marginLeft: isMobile ? 0 : "auto",
-                        order: isMobile ? 1 : 0,
-                        fontSize: 12.5,
-                        color: "var(--text-3)",
-                        whiteSpace: "nowrap",
-                        flex: "none",
-                      }}
-                    >
-                      {formatTime(latest.gmailInternalDate)}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: "var(--text-3)",
-                        fontFamily: "var(--mono)",
-                        order: isMobile ? 2 : 0,
-                        flexBasis: isMobile ? "100%" : "auto",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        minWidth: 0,
-                      }}
-                    >
-                      {thread.customerEmail ?? ""}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 15.5, lineHeight: 1.68, color: "var(--text)" }}>
-                    {paragraphs(latest).map((p, i) => (
-                      <p key={i} style={{ margin: "0 0 12px" }}>
-                        {p}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
+            {shown.map((m) => (
+              <MessageCard key={m.id} msg={m} fallbackName={thread.customerName} />
+            ))}
           </div>
 
-          {/* composer — Phase 0 placeholder (AI drafting arrives in Phase 3) */}
+          {/* composer — placeholder until AI drafting arrives in Phase 3 */}
           <div
             style={{
               flex: "none",
               borderTop: "1px solid var(--border)",
               background: "var(--surface-3)",
-              padding: isMobile ? "14px 16px 16px" : "16px 30px 18px",
+              padding: isMobile ? "14px 16px 16px" : "16px 26px 18px",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-                marginBottom: 11,
-              }}
-            >
+            <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 11 }}>
               <span
                 style={{
                   width: 20,
@@ -395,16 +421,10 @@ export function Review() {
               }}
             >
               No draft yet. In Phase 3 the AI will draft a reply here, grounded in
-              the knowledge base — and you'll approve, edit, or regenerate it.
+              the knowledge base and this customer's Shopify orders — and you'll
+              approve, edit, or regenerate it.
             </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                paddingTop: 15,
-              }}
-            >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 15 }}>
               <button
                 disabled
                 title="Sending is introduced in Phase 3"
@@ -506,7 +526,7 @@ export function Review() {
           >
             Context
           </div>
-          <ShopifyContextPanel email={thread.customerEmail} />
+          {id && <ShopifyContextPanel threadId={id} email={thread.customerEmail} />}
         </div>
       </div>
     </div>
@@ -541,14 +561,7 @@ function OrderCard({ order }: { order: ShopifyOrderDTO }) {
         <span style={{ fontSize: 12, color: "var(--text-3)" }}>
           {formatTime(order.createdAt)}
         </span>
-        <span
-          style={{
-            marginLeft: "auto",
-            fontWeight: 600,
-            fontSize: 13,
-            color: "var(--text)",
-          }}
-        >
+        <span style={{ marginLeft: "auto", fontWeight: 600, fontSize: 13, color: "var(--text)" }}>
           {order.total ? `${order.total} ${order.currency ?? ""}` : ""}
         </span>
       </div>
@@ -607,18 +620,27 @@ function OrderCard({ order }: { order: ShopifyOrderDTO }) {
   );
 }
 
-function ShopifyContextPanel({ email }: { email: string | null }) {
+function ShopifyContextPanel({ threadId, email }: { threadId: string; email: string | null }) {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [ctx, setCtx] = useState<ShopifyContextDTO | null>(null);
   const [loading, setLoading] = useState(false);
   const [orderQuery, setOrderQuery] = useState("");
 
-  const lookup = (params: { email?: string; order?: string }) => {
+  const resolve = () => {
     setLoading(true);
     api
-      .shopifyContext(params)
+      .threadShopify(threadId)
       .then(setCtx)
-      .catch(() => setCtx({ found: false, customer: null, orders: [] }))
+      .catch(() => setCtx({ found: false, customer: null, orders: [], matchedBy: null }))
+      .finally(() => setLoading(false));
+  };
+
+  const findOrder = (order: string) => {
+    setLoading(true);
+    api
+      .threadShopifyOrder(threadId, order)
+      .then(setCtx)
+      .catch(() => setCtx({ found: false, customer: null, orders: [], matchedBy: null }))
       .finally(() => setLoading(false));
   };
 
@@ -629,14 +651,14 @@ function ShopifyContextPanel({ email }: { email: string | null }) {
       .then((s) => {
         if (!active) return;
         setConfigured(s.configured);
-        if (s.configured && email) lookup({ email });
+        if (s.configured) resolve();
       })
       .catch(() => active && setConfigured(false));
     return () => {
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [email]);
+  }, [threadId]);
 
   if (configured === false) {
     return (
@@ -659,6 +681,15 @@ function ShopifyContextPanel({ email }: { email: string | null }) {
     );
   }
 
+  const matchLabel =
+    ctx?.matchedBy === "order"
+      ? "matched by order number"
+      : ctx?.matchedBy === "email"
+        ? "matched by email"
+        : ctx?.matchedBy === "pinned"
+          ? "pinned order"
+          : null;
+
   return (
     <div>
       {/* manual order lookup */}
@@ -667,7 +698,7 @@ function ShopifyContextPanel({ email }: { email: string | null }) {
           value={orderQuery}
           onChange={(e) => setOrderQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && orderQuery.trim()) lookup({ order: orderQuery.trim() });
+            if (e.key === "Enter" && orderQuery.trim()) findOrder(orderQuery.trim());
           }}
           placeholder="Look up order # (e.g. 21142)"
           style={{
@@ -684,7 +715,7 @@ function ShopifyContextPanel({ email }: { email: string | null }) {
           }}
         />
         <button
-          onClick={() => orderQuery.trim() && lookup({ order: orderQuery.trim() })}
+          onClick={() => orderQuery.trim() && findOrder(orderQuery.trim())}
           style={{
             cursor: "pointer",
             fontSize: 12.5,
@@ -700,24 +731,22 @@ function ShopifyContextPanel({ email }: { email: string | null }) {
         </button>
       </div>
 
-      {email && (
-        <button
-          onClick={() => lookup({ email })}
-          style={{
-            cursor: "pointer",
-            fontSize: 12,
-            fontWeight: 600,
-            padding: "5px 10px",
-            borderRadius: 7,
-            border: "1px solid var(--border)",
-            background: "transparent",
-            color: "var(--text-3)",
-            marginBottom: 12,
-          }}
-        >
-          ↺ This customer ({email})
-        </button>
-      )}
+      <button
+        onClick={resolve}
+        style={{
+          cursor: "pointer",
+          fontSize: 12,
+          fontWeight: 600,
+          padding: "5px 10px",
+          borderRadius: 7,
+          border: "1px solid var(--border)",
+          background: "transparent",
+          color: "var(--text-3)",
+          marginBottom: 12,
+        }}
+      >
+        ↺ Auto-match{email ? ` (${email})` : ""}
+      </button>
 
       {loading && (
         <div style={{ fontSize: 13, color: "var(--text-3)", padding: "8px 0" }}>
@@ -736,12 +765,17 @@ function ShopifyContextPanel({ email }: { email: string | null }) {
             color: "var(--text-3)",
           }}
         >
-          No matching customer or order found.
+          No matching customer or order found. Try a specific order number above.
         </div>
       )}
 
       {!loading && ctx?.found && (
         <>
+          {matchLabel && (
+            <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 8 }}>
+              {matchLabel}
+            </div>
+          )}
           {ctx.customer && (
             <div
               style={{
