@@ -12,6 +12,9 @@ export interface IntegrationsConfig {
   encryptionKey: string;
   gmailAccount: string;
   backfillMonths: number;
+  // Optional so ingestion works before an AI key is configured. Triage is a
+  // no-op (leaves threads unclassified) until this is set.
+  anthropicApiKey?: string;
 }
 
 // The Gmail scope used in Phase 0 — READ ONLY. The send/modify scopes are added

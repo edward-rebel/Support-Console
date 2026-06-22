@@ -65,16 +65,41 @@ export const api = {
     }),
   logout: () => request<{ ok: boolean }>("/auth/logout", { method: "POST" }),
   me: () => request<OperatorDTO>("/auth/me"),
-  listThreads: (params: { status?: string; page?: number } = {}) => {
+  listThreads: (
+    params: {
+      status?: string;
+      tab?: "customer" | "noise";
+      category?: string;
+      page?: number;
+    } = {},
+  ) => {
     const qs = new URLSearchParams();
     if (params.status) qs.set("status", params.status);
+    if (params.tab) qs.set("tab", params.tab);
+    if (params.category) qs.set("category", params.category);
     if (params.page) qs.set("page", String(params.page));
     const q = qs.toString();
     return request<Paginated<ThreadSummaryDTO>>(
       `/threads${q ? `?${q}` : ""}`,
     );
   },
+  threadCounts: () =>
+    request<{
+      customer: number;
+      noise: number;
+      pending: number;
+      needsReview: number;
+    }>("/threads/counts"),
   getThread: (id: string) => request<ThreadDetailDTO>(`/threads/${id}`),
+  reclassifyThread: (id: string, isCustomer: boolean) =>
+    request<{ isCustomer: boolean | null }>(`/threads/${id}/reclassify`, {
+      method: "POST",
+      body: JSON.stringify({ isCustomer }),
+    }),
+  runTriage: () =>
+    request<{ started: boolean; running: boolean }>("/triage/run", {
+      method: "POST",
+    }),
   sync: () =>
     request<{ started: boolean } & SyncStatus>("/sync", { method: "POST" }),
   syncStatus: () => request<SyncStatus>("/sync/status"),

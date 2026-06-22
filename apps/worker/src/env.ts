@@ -39,6 +39,7 @@ export function loadEnv(): WorkerEnv {
       encryptionKey: req("ENCRYPTION_KEY"),
       gmailAccount: opt("GMAIL_ACCOUNT", "contact@mollyandstitch.us"),
       backfillMonths: Number(opt("BACKFILL_MONTHS", "6")),
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     },
   };
 }

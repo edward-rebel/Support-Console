@@ -13,6 +13,7 @@
     "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
     "@ms/db": "workspace:*",
     "@ms/shared": "workspace:*",
     "drizzle-orm": "^0.38.3",

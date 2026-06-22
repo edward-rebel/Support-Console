@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { ThreadSummaryDTO } from "@ms/shared";
+import { CATEGORIES, type ThreadSummaryDTO } from "@ms/shared";
 import { api } from "../api";
 import { useSync } from "../sync";
 import { useIsMobile } from "../useIsMobile";
@@ -31,24 +31,45 @@ export function Inbox() {
   const { syncing, completedAt } = useSync();
   const isMobile = useIsMobile();
   const [tab, setTab] = useState<Tab>("customer");
-  // Phase 0 default is "All": there's no triage/drafting yet, so "Needs Review"
-  // is always empty. Once Phase 3 assigns needs_review, switch the default back.
+  // Default to "All": needs_review stays empty until drafting (Phase 3).
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [category, setCategory] = useState<string | null>(null);
+  const [catMenuOpen, setCatMenuOpen] = useState(false);
   const [threads, setThreads] = useState<ThreadSummaryDTO[]>([]);
-  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [reload, setReload] = useState(0);
+  const [counts, setCounts] = useState({
+    customer: 0,
+    noise: 0,
+    pending: 0,
+    needsReview: 0,
+  });
 
+  // Tab/subtitle badge counts.
+  useEffect(() => {
+    let active = true;
+    void api
+      .threadCounts()
+      .then((c) => active && setCounts(c))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [completedAt, reload]);
+
+  // Thread list for the active tab/filters.
   useEffect(() => {
     let active = true;
     setLoading(true);
     void (async () => {
       try {
         const res = await api.listThreads({
-          status: STATUS_QUERY[statusFilter],
+          tab,
+          status: tab === "customer" ? STATUS_QUERY[statusFilter] : undefined,
+          category: tab === "customer" ? (category ?? undefined) : undefined,
         });
         if (!active) return;
         setThreads(res.items);
-        setTotal(res.total);
       } finally {
         if (active) setLoading(false);
       }
@@ -56,13 +77,18 @@ export function Inbox() {
     return () => {
       active = false;
     };
-  }, [statusFilter, completedAt]);
+  }, [tab, statusFilter, category, completedAt, reload]);
 
-  const needsReviewCount = useMemo(
-    () => threads.filter((t) => t.status === "needs_review").length,
-    [threads],
-  );
-  const subtitle = `${needsReviewCount} need review · ${total} customer threads`;
+  const reclassifyNotNoise = async (id: string) => {
+    setThreads((prev) => prev.filter((t) => t.id !== id)); // optimistic
+    try {
+      await api.reclassifyThread(id, true);
+    } finally {
+      setReload((n) => n + 1);
+    }
+  };
+
+  const subtitle = `${counts.needsReview} need review · ${counts.customer} customer threads`;
 
   const showCaughtUp =
     !loading && statusFilter === "needs" && threads.length === 0 && tab === "customer";
@@ -155,13 +181,13 @@ export function Inbox() {
               active={tab === "customer"}
               onClick={() => setTab("customer")}
               label="Customer requests"
-              count={total}
+              count={counts.customer}
             />
             <Segment
               active={tab === "noise"}
               onClick={() => setTab("noise")}
               label="Filtered out"
-              count={0}
+              count={counts.noise}
             />
           </div>
 
@@ -191,24 +217,66 @@ export function Inbox() {
                   margin: "0 3px",
                 }}
               />
-              <button
-                style={{
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontWeight: 500,
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  border: "1px solid var(--border)",
-                  background: "var(--surface)",
-                  color: "var(--text-2)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 7,
-                }}
-              >
-                All categories
-                <ChevronDownIcon size={12} strokeWidth={2.4} />
-              </button>
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => setCatMenuOpen((o) => !o)}
+                  style={{
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    border: "1px solid var(--border)",
+                    background: category ? "var(--text)" : "var(--surface)",
+                    color: category ? "#fff" : "var(--text-2)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 7,
+                  }}
+                >
+                  {category
+                    ? (CATEGORIES.find((c) => c.slug === category)?.name ??
+                      "Category")
+                    : "All categories"}
+                  <ChevronDownIcon size={12} strokeWidth={2.4} />
+                </button>
+                {catMenuOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 4px)",
+                      left: 0,
+                      zIndex: 20,
+                      minWidth: 170,
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 10,
+                      boxShadow: "0 12px 30px rgba(20,18,14,.18)",
+                      padding: 5,
+                    }}
+                  >
+                    <CatItem
+                      label="All categories"
+                      onClick={() => {
+                        setCategory(null);
+                        setCatMenuOpen(false);
+                      }}
+                      active={category === null}
+                    />
+                    {CATEGORIES.map((c) => (
+                      <CatItem
+                        key={c.slug}
+                        label={c.name}
+                        onClick={() => {
+                          setCategory(c.slug);
+                          setCatMenuOpen(false);
+                        }}
+                        active={category === c.slug}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -224,7 +292,11 @@ export function Inbox() {
         }}
       >
         {tab === "noise" ? (
-          <NoisePlaceholder />
+          <NoiseList
+            rows={threads}
+            loading={loading}
+            onNotNoise={reclassifyNotNoise}
+          />
         ) : showCaughtUp ? (
           <CaughtUp />
         ) : threads.length > 0 ? (
@@ -749,7 +821,48 @@ function CaughtUp() {
   );
 }
 
-function NoisePlaceholder() {
+function CatItem({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        width: "100%",
+        textAlign: "left",
+        cursor: "pointer",
+        border: "none",
+        background: hover ? "var(--hover)" : "transparent",
+        color: active ? "var(--accent-soft-fg)" : "var(--text-2)",
+        fontWeight: active ? 600 : 500,
+        fontSize: 13,
+        padding: "7px 10px",
+        borderRadius: 7,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function NoiseList({
+  rows,
+  loading,
+  onNotNoise,
+}: {
+  rows: ThreadSummaryDTO[];
+  loading: boolean;
+  onNotNoise: (id: string) => void;
+}) {
   return (
     <div>
       <div
@@ -764,8 +877,154 @@ function NoisePlaceholder() {
         }}
       >
         <FilterIcon size={15} />
-        Automatically filtered by your sender rules — arrives in Phase 1 (triage
-        gate). For now, all ingested threads appear under Customer requests.
+        Automatically filtered as noise by your sender rules and AI triage. Found
+        a real customer here? Mark it <strong>Not noise</strong>.
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--text-3)", fontSize: 14 }}>
+          {loading ? "Loading…" : "Nothing filtered out yet."}
+        </div>
+      ) : (
+        <div
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 13,
+            overflow: "hidden",
+            boxShadow: "var(--shadow)",
+          }}
+        >
+          {rows.map((row) => (
+            <NoiseRow key={row.id} row={row} onNotNoise={onNotNoise} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NoiseRow({
+  row,
+  onNotNoise,
+}: {
+  row: ThreadSummaryDTO;
+  onNotNoise: (id: string) => void;
+}) {
+  const domain = row.customerEmail?.split("@")[1] ?? "unknown";
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 13,
+        padding: "13px 16px",
+        borderBottom: "1px solid var(--border-2)",
+        opacity: 0.82,
+      }}
+    >
+      <div
+        style={{
+          flex: "none",
+          width: 38,
+          height: 38,
+          borderRadius: 10,
+          background: "var(--surface-2)",
+          border: "1px solid var(--border)",
+          color: "var(--text-3)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontWeight: 700,
+          fontSize: 13,
+        }}
+      >
+        {initialsFrom(row.customerName, row.customerEmail)}
+      </div>
+      <div style={{ flex: "none", width: 170, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 13.5,
+            fontWeight: 600,
+            color: "var(--text-2)",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {row.customerName ?? row.customerEmail ?? "Unknown"}
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            color: "var(--text-3)",
+            fontFamily: "var(--mono)",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {row.customerEmail ?? ""}
+        </div>
+      </div>
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          fontSize: 13.5,
+          color: "var(--text-2)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {row.subject ?? "(no subject)"}
+      </div>
+      <span
+        style={{
+          flex: "none",
+          fontSize: 11,
+          fontWeight: 500,
+          padding: "3px 10px",
+          borderRadius: 999,
+          background: "var(--surface-2)",
+          border: "1px solid var(--border)",
+          color: "var(--text-3)",
+          fontFamily: "var(--mono)",
+          whiteSpace: "nowrap",
+          maxWidth: 180,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+        title={`Domain: ${domain}`}
+      >
+        {domain}
+      </span>
+      <button
+        onClick={() => onNotNoise(row.id)}
+        style={{
+          flex: "none",
+          cursor: "pointer",
+          fontSize: 12.5,
+          fontWeight: 500,
+          padding: "5px 11px",
+          borderRadius: 7,
+          border: "1px solid var(--border)",
+          background: "var(--surface)",
+          color: "var(--text-2)",
+        }}
+      >
+        Not noise?
+      </button>
+      <div
+        style={{
+          flex: "none",
+          width: 54,
+          textAlign: "right",
+          fontSize: 12,
+          color: "var(--text-3)",
+        }}
+      >
+        {shortTime(row.lastMessageAt)}
       </div>
     </div>
   );

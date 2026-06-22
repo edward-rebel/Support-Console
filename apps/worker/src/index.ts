@@ -1,5 +1,5 @@
 import { createDb } from "@ms/db";
-import { GmailNotConnectedError, runSync } from "@ms/integrations";
+import { GmailNotConnectedError, runSync, runTriage } from "@ms/integrations";
 import { loadEnv } from "./env";
 
 // Ingestion worker. Two modes:
@@ -16,6 +16,12 @@ async function runOnce(): Promise<void> {
     console.log(
       `[worker] sync (${result.mode}): ${result.messagesUpserted} new messages, ${result.threadsUpserted} threads touched`,
     );
+    if (env.integrations.anthropicApiKey) {
+      const t = await runTriage(db, env.integrations);
+      console.log(
+        `[worker] triage: ${t.markedCustomer} customer, ${t.markedNoise} noise (${t.classifiedByModel} via model) of ${t.considered}`,
+      );
+    }
   } catch (err) {
     if (err instanceof GmailNotConnectedError) {
       console.warn(`[worker] ${err.message} — skipping until connected.`);
@@ -40,6 +46,12 @@ async function runLoop(): Promise<void> {
       console.log(
         `[worker] sync (${result.mode}): ${result.messagesUpserted} new messages, ${result.threadsUpserted} threads touched`,
       );
+      if (env.integrations.anthropicApiKey) {
+        const t = await runTriage(db, env.integrations);
+        console.log(
+          `[worker] triage: ${t.markedCustomer} customer, ${t.markedNoise} noise (${t.classifiedByModel} via model) of ${t.considered}`,
+        );
+      }
     } catch (err) {
       if (err instanceof GmailNotConnectedError) {
         console.warn(`[worker] ${err.message} — will retry next interval.`);
@@ -67,8 +79,32 @@ async function runLoop(): Promise<void> {
   process.on("SIGTERM", shutdown);
 }
 
-const once = process.argv.includes("--once");
-(once ? runOnce() : runLoop()).catch((err) => {
+// Triage-only mode: classify existing threads without syncing Gmail. Useful for
+// the one-time backfill. Optional limit: `--triage 50`.
+async function triageOnce(): Promise<void> {
+  const env = loadEnv();
+  const { db, sql } = createDb(env.databaseUrl);
+  try {
+    if (!env.integrations.anthropicApiKey) {
+      console.warn("[worker] ANTHROPIC_API_KEY not set — nothing to do.");
+      return;
+    }
+    const idx = process.argv.indexOf("--triage");
+    const limitArg = Number(process.argv[idx + 1]);
+    const limit = Number.isFinite(limitArg) && limitArg > 0 ? limitArg : 5000;
+    const t = await runTriage(db, env.integrations, limit);
+    console.log(`[worker] triage:`, JSON.stringify(t));
+  } finally {
+    await sql.end();
+  }
+}
+
+const mode = process.argv.includes("--triage")
+  ? triageOnce()
+  : process.argv.includes("--once")
+    ? runOnce()
+    : runLoop();
+mode.catch((err) => {
   console.error(err);
   process.exit(1);
 });

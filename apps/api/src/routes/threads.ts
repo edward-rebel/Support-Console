@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, or, type SQL, sql } from "drizzle-orm";
 import { categories, messages, threads } from "@ms/db";
 import type {
   CategoryDTO,
@@ -36,7 +36,13 @@ export function registerThreadRoutes(app: FastifyInstance): void {
 
   // GET /threads?status=needs_review&page=1&pageSize=50
   app.get<{
-    Querystring: { status?: string; page?: string; pageSize?: string };
+    Querystring: {
+      status?: string;
+      tab?: string;
+      category?: string;
+      page?: string;
+      pageSize?: string;
+    };
   }>("/threads", { preHandler: requireAuth }, async (request, reply) => {
     const page = Math.max(1, Number(request.query.page ?? "1") || 1);
     const pageSize = Math.min(
@@ -48,11 +54,24 @@ export function registerThreadRoutes(app: FastifyInstance): void {
       ? (statusParam as ThreadStatus)
       : undefined;
 
-    const where = statusFilter ? eq(threads.status, statusFilter) : undefined;
+    const conds: SQL[] = [];
+    if (statusFilter) conds.push(eq(threads.status, statusFilter));
+    // Triage tab: "noise" = filtered out (is_customer false); "customer" =
+    // confirmed customers + not-yet-triaged (is_customer true or null).
+    if (request.query.tab === "noise") {
+      conds.push(eq(threads.isCustomer, false));
+    } else if (request.query.tab === "customer") {
+      conds.push(or(eq(threads.isCustomer, true), isNull(threads.isCustomer))!);
+    }
+    if (request.query.category) {
+      conds.push(eq(categories.slug, request.query.category));
+    }
+    const where = conds.length ? and(...conds) : undefined;
 
     const countRows = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(threads)
+      .leftJoin(categories, eq(threads.categoryId, categories.id))
       .where(where ?? sql`true`);
     const total = countRows[0]?.count ?? 0;
 
@@ -107,6 +126,29 @@ export function registerThreadRoutes(app: FastifyInstance): void {
     };
     return reply.send(result);
   });
+
+  // GET /threads/counts — tab + subtitle badges for the inbox.
+  app.get(
+    "/threads/counts",
+    { preHandler: requireAuth },
+    async (_request, reply) => {
+      const rows = await db
+        .select({
+          customer: sql<number>`count(*) filter (where ${threads.isCustomer} is true or ${threads.isCustomer} is null)::int`,
+          noise: sql<number>`count(*) filter (where ${threads.isCustomer} is false)::int`,
+          pending: sql<number>`count(*) filter (where ${threads.isCustomer} is null)::int`,
+          needsReview: sql<number>`count(*) filter (where ${threads.status} = 'needs_review')::int`,
+        })
+        .from(threads);
+      const r = rows[0];
+      return reply.send({
+        customer: r?.customer ?? 0,
+        noise: r?.noise ?? 0,
+        pending: r?.pending ?? 0,
+        needsReview: r?.needsReview ?? 0,
+      });
+    },
+  );
 
   // GET /threads/:id — thread + ordered messages.
   app.get<{ Params: { id: string } }>(

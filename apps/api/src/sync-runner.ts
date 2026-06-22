@@ -1,6 +1,7 @@
 import {
   GmailNotConnectedError,
   runSync,
+  runTriage,
   type IntegrationsConfig,
 } from "@ms/integrations";
 import type { Db } from "@ms/db";
@@ -39,6 +40,14 @@ export class SyncRunner {
         log(
           `Sync (${result.mode}) complete: ${result.messagesUpserted} new messages across ${result.threadsUpserted} threads`,
         );
+        // Triage newly-ingested threads (deterministic rules + cheap model).
+        // Never sends email. Skips silently if no API key is configured.
+        if (this.cfg.anthropicApiKey) {
+          const t = await runTriage(this.db, this.cfg);
+          log(
+            `Triage: ${t.markedCustomer} customer, ${t.markedNoise} noise (${t.classifiedByModel} via model) of ${t.considered}`,
+          );
+        }
       } catch (err) {
         if (err instanceof GmailNotConnectedError) {
           this.lastError = err.message;
