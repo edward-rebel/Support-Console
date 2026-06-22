@@ -4,6 +4,7 @@ import {
   getShopifyContext,
   hasShopify,
   resolveThreadShopify,
+  searchShopify,
 } from "@ms/integrations";
 import { threads } from "@ms/db";
 import { requireAuth } from "../auth";
@@ -67,28 +68,40 @@ export function registerShopifyRoutes(app: FastifyInstance): void {
     },
   );
 
-  // Manual order lookup for a thread — pins the order so it persists on reload.
-  app.post<{ Params: { id: string }; Body: { order?: string } }>(
+  // Manual lookup for a thread by email, name, phone, or order number — pins a
+  // resolved order so the context persists on reload. Accepts `query` (new) or
+  // `order` (legacy) for backward compatibility.
+  app.post<{ Params: { id: string }; Body: { query?: string; order?: string } }>(
     "/threads/:id/shopify/order",
     { preHandler: requireAuth },
     async (request, reply) => {
       if (!hasShopify(cfg)) {
         return reply.code(400).send({ error: "Shopify is not configured." });
       }
-      const order = request.body?.order?.trim();
-      if (!order) return reply.code(400).send({ error: "An order number is required." });
+      const term = (request.body?.query ?? request.body?.order)?.trim();
+      if (!term) {
+        return reply
+          .code(400)
+          .send({ error: "Enter an email, name, phone, or order number." });
+      }
       try {
-        const ctx = await getShopifyContext(cfg, { orderNumber: order });
-        if (ctx.found) {
-          const name = ctx.orders[0]?.name ?? `#${order.replace(/^#/, "")}`;
+        const ctx = await searchShopify(cfg, term);
+        if (ctx.found && ctx.orders[0]?.name) {
           await db
             .update(threads)
-            .set({ shopifyOrderName: name, updatedAt: new Date() })
+            .set({ shopifyOrderName: ctx.orders[0].name, updatedAt: new Date() })
             .where(eq(threads.id, request.params.id));
         }
-        return reply.send({ ...ctx, matchedBy: ctx.found ? "order" : null });
+        const matchedBy = !ctx.found
+          ? null
+          : term.includes("@")
+            ? "email"
+            : /^#?\d{3,7}$/.test(term.replace(/\s/g, ""))
+              ? "order"
+              : null;
+        return reply.send({ ...ctx, matchedBy });
       } catch (err) {
-        app.log.error({ err }, "Shopify order lookup failed");
+        app.log.error({ err }, "Shopify lookup failed");
         return reply.code(502).send({ error: "Shopify lookup failed." });
       }
     },

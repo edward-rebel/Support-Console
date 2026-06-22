@@ -788,8 +788,8 @@ function ShopifyContextPanel({ threadId, email }: { threadId: string; email: str
           value={orderQuery}
           onChange={(e) => setOrderQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && orderQuery.trim()) findOrder(orderQuery.trim()); }}
-          placeholder="Look up order # (e.g. 21142)"
-          style={inputStyle}
+          placeholder="Find by email, name, phone, or order #"
+          style={{ ...inputStyle, fontFamily: "var(--sans)" }}
         />
         <button onClick={() => orderQuery.trim() && findOrder(orderQuery.trim())} style={{ cursor: "pointer", fontSize: 12.5, fontWeight: 600, padding: "0 14px", height: 40, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-2)" }}>
           Find

@@ -45,6 +45,9 @@ export function registerInsightsRoutes(app: FastifyInstance): void {
       const trendSince = new Date(Date.now() - (trendDays - 1) * 86_400_000);
       const trendSinceIso = new Date(dayKey(trendSince)).toISOString();
 
+      // Filter by the email date (last_message_at), falling back to ingestion
+      // time — created_at is when the row was ingested (all on the backfill day),
+      // so it would make every time range identical.
       const totalsRows = (await db.execute(sql`
         SELECT
           count(*)::int AS total,
@@ -52,7 +55,7 @@ export function registerInsightsRoutes(app: FastifyInstance): void {
           count(*) FILTER (WHERE is_customer IS FALSE)::int AS noise,
           count(*) FILTER (WHERE is_customer IS NULL)::int AS untriaged
         FROM threads
-        WHERE created_at >= ${sinceIso}
+        WHERE coalesce(last_message_at, created_at) >= ${sinceIso}
       `)) as unknown as {
         total: number;
         customer: number;
@@ -70,7 +73,7 @@ export function registerInsightsRoutes(app: FastifyInstance): void {
         SELECT c.id AS cid, c.slug, c.name, c.color, count(*)::int AS count
         FROM threads t
         LEFT JOIN categories c ON c.id = t.category_id
-        WHERE t.is_customer IS NOT FALSE AND t.created_at >= ${sinceIso}
+        WHERE t.is_customer IS NOT FALSE AND coalesce(t.last_message_at, t.created_at) >= ${sinceIso}
         GROUP BY c.id, c.slug, c.name, c.color
         ORDER BY count DESC
       `)) as unknown as {
@@ -91,7 +94,7 @@ export function registerInsightsRoutes(app: FastifyInstance): void {
       const statusRows = (await db.execute(sql`
         SELECT status, count(*)::int AS count
         FROM threads
-        WHERE created_at >= ${sinceIso}
+        WHERE coalesce(last_message_at, created_at) >= ${sinceIso}
         GROUP BY status
       `)) as unknown as { status: ThreadStatus; count: number }[];
       const byStatus: StatusBreakdownDTO[] = statusRows.map((r) => ({
@@ -102,7 +105,7 @@ export function registerInsightsRoutes(app: FastifyInstance): void {
       const sentRows = (await db.execute(sql`
         SELECT sentiment, count(*)::int AS count
         FROM threads
-        WHERE sentiment IS NOT NULL AND created_at >= ${sinceIso}
+        WHERE sentiment IS NOT NULL AND coalesce(last_message_at, created_at) >= ${sinceIso}
         GROUP BY sentiment
       `)) as unknown as { sentiment: string; count: number }[];
       const sentimentBuckets = sentRows
@@ -136,8 +139,8 @@ export function registerInsightsRoutes(app: FastifyInstance): void {
       // Bucket in UTC on the SQL side so the day keys line up with the JS UTC
       // keys built by dayKey() (the postgres session TZ is otherwise undefined).
       const recvRows = (await db.execute(sql`
-        SELECT to_char(date_trunc('day', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS d, count(*)::int AS n
-        FROM threads WHERE created_at >= ${trendSinceIso} GROUP BY d
+        SELECT to_char(date_trunc('day', coalesce(last_message_at, created_at) AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS d, count(*)::int AS n
+        FROM threads WHERE coalesce(last_message_at, created_at) >= ${trendSinceIso} GROUP BY d
       `)) as unknown as { d: string; n: number }[];
       const sentDayRows = (await db.execute(sql`
         SELECT to_char(date_trunc('day', sent_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS d, count(*)::int AS n

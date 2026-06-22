@@ -227,10 +227,10 @@ export const api = {
   // persists a resolved order so it survives a reload.
   threadShopify: (threadId: string) =>
     request<ShopifyContextDTO>(`/threads/${threadId}/shopify`),
-  // Manual lookup for a thread — pins the order.
-  threadShopifyOrder: (threadId: string, order: string) =>
+  // Manual lookup for a thread by email, name, phone, or order # — pins the order.
+  threadShopifyOrder: (threadId: string, query: string) =>
     request<ShopifyContextDTO>(`/threads/${threadId}/shopify/order`, {
       method: "POST",
-      body: JSON.stringify({ order }),
+      body: JSON.stringify({ query }),
     }),
 };

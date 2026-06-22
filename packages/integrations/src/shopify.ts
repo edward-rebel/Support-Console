@@ -173,8 +173,9 @@ function notFound(): ShopifyContextDTO {
   return { found: false, customer: null, orders: [] };
 }
 
-// Look up a customer by email + their most recent orders.
-async function byEmail(s: ShopifyConfig, email: string): Promise<ShopifyContextDTO> {
+// Look up a customer by a Shopify customers-query string (e.g. "email:x@y.com",
+// "phone:+1...", or free text matching name/email/phone) + their recent orders.
+async function customerByQuery(s: ShopifyConfig, q: string): Promise<ShopifyContextDTO> {
   const data = await shopifyGraphql<{ customers: { edges: { node: GqlCustomerNode }[] } }>(
     s,
     `query($q: String!) {
@@ -189,7 +190,7 @@ async function byEmail(s: ShopifyConfig, email: string): Promise<ShopifyContextD
         } }
       }
     }`,
-    { q: `email:${email}` },
+    { q },
   );
   const c = data.customers.edges[0]?.node;
   if (!c) return notFound();
@@ -251,9 +252,52 @@ async function byOrder(s: ShopifyConfig, orderNumber: string): Promise<ShopifyCo
   };
 }
 
-// Public entry point used by the API + (Phase 3) the drafting agent. Prefers an
-// explicit order number, else the customer email. Returns a not-found context
-// rather than throwing when nothing matches.
+async function byEmail(s: ShopifyConfig, email: string): Promise<ShopifyContextDTO> {
+  return customerByQuery(s, `email:${email}`);
+}
+
+// Addresses that are NOT the real customer: Shopify/platform senders, the brand's
+// own mailbox, and generic system prefixes. Used both to skip a useless lookup on
+// the thread's From and to pick the real customer email out of a form-submission.
+const SYSTEM_EMAIL =
+  /(@(shopify\.com|[a-z0-9-]+\.shopifyemail\.com|[a-z0-9-]+\.myshopify\.com)$)|(@mollyandstitch\.)|(^(no-?reply|mailer|notifications?|do-?not-?reply|postmaster|mailer-daemon)@)/i;
+const EMAIL_IN_TEXT = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
+
+export function isSystemEmail(email: string | null | undefined): boolean {
+  return Boolean(email && SYSTEM_EMAIL.test(email.toLowerCase()));
+}
+
+// Pull the first real customer email out of free text (e.g. a Shopify contact-
+// form submission that arrives from mailer@shopify.com but contains the real
+// customer's address in the body), skipping system/brand addresses.
+export function extractCustomerEmail(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const matches = text.match(EMAIL_IN_TEXT) ?? [];
+  for (const m of matches) {
+    const e = m.toLowerCase();
+    if (!SYSTEM_EMAIL.test(e)) return e;
+  }
+  return null;
+}
+
+// Broad manual lookup: route by the shape of the term — email, order number
+// (3-7 digits, optionally #-prefixed), or free text (name / phone / etc, which
+// Shopify's customer search matches across name/email/phone).
+export async function searchShopify(
+  cfg: IntegrationsConfig,
+  term: string,
+): Promise<ShopifyContextDTO> {
+  if (!hasShopify(cfg) || !cfg.shopify) throw new Error("Shopify is not configured");
+  const t = term.trim();
+  if (!t) return notFound();
+  if (t.includes("@")) return byEmail(cfg.shopify, t.toLowerCase());
+  if (/^#?\d{3,7}$/.test(t.replace(/\s/g, ""))) return byOrder(cfg.shopify, t);
+  return customerByQuery(cfg.shopify, t);
+}
+
+// Public entry point used by the API + the drafting agent. Prefers an explicit
+// order number, else the customer email. Returns a not-found context rather than
+// throwing when nothing matches.
 export async function getShopifyContext(
   cfg: IntegrationsConfig,
   params: { email?: string | null; orderNumber?: string | null },
@@ -305,12 +349,15 @@ export async function resolveThreadShopify(
     const ctx = await getShopifyContext(cfg, { orderNumber: t.pinned });
     if (ctx.found) return { ...ctx, matchedBy: "pinned" };
   }
-  // 2) Customer email (preferred default).
-  if (t.email) {
+  // 2) Customer email — unless the From is a platform/system sender (e.g.
+  //    mailer@shopify.com for website contact-form submissions), which won't
+  //    match a Shopify customer.
+  if (t.email && !isSystemEmail(t.email)) {
     const ctx = await getShopifyContext(cfg, { email: t.email });
     if (ctx.found && ctx.orders.length > 0) return { ...ctx, matchedBy: "email" };
   }
-  // 3) Order number in the subject/body (different sender than the order used).
+
+  // Gather the subject + message bodies once for the body-based fallbacks.
   const msgs = await db
     .select({
       subject: messages.subject,
@@ -327,6 +374,18 @@ export async function resolveThreadShopify(
       m.bodyText?.trim() ? m.bodyText : m.bodyHtml ? stripTags(m.bodyHtml) : "",
     ),
   ];
+  const fullText = haystacks.join("\n");
+
+  const persistOrder = async (name: string) => {
+    if (opts.persist) {
+      await db
+        .update(threads)
+        .set({ shopifyOrderName: name, updatedAt: new Date() })
+        .where(eq(threads.id, t.id));
+    }
+  };
+
+  // 3) Order number found in the subject/body.
   let orderNo: string | null = null;
   for (const h of haystacks) {
     orderNo = extractOrderNumber(h);
@@ -335,16 +394,23 @@ export async function resolveThreadShopify(
   if (orderNo) {
     const ctx = await getShopifyContext(cfg, { orderNumber: orderNo });
     if (ctx.found) {
-      if (opts.persist) {
-        const name = ctx.orders[0]?.name ?? orderNo;
-        await db
-          .update(threads)
-          .set({ shopifyOrderName: name, updatedAt: new Date() })
-          .where(eq(threads.id, t.id));
-      }
+      await persistOrder(ctx.orders[0]?.name ?? orderNo);
       return { ...ctx, matchedBy: "order" };
     }
   }
+
+  // 4) A real customer email embedded in the body — covers website contact-form
+  //    submissions delivered from mailer@shopify.com whose body holds the actual
+  //    customer's address. Also try the From if it was a system sender skipped above.
+  const bodyEmail = extractCustomerEmail(fullText);
+  if (bodyEmail) {
+    const ctx = await getShopifyContext(cfg, { email: bodyEmail });
+    if (ctx.found) {
+      if (ctx.orders[0]?.name) await persistOrder(ctx.orders[0].name);
+      return { ...ctx, matchedBy: "email" };
+    }
+  }
+
   return { found: false, customer: null, orders: [], matchedBy: null };
 }
 
