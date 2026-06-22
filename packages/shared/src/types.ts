@@ -1,5 +1,6 @@
 import type {
   ConfidenceLevel,
+  KnowledgeEntryType,
   MessageDirection,
   ThreadStatus,
 } from "./enums";
@@ -63,4 +64,48 @@ export interface SyncResultDTO {
   messagesUpserted: number;
   startedAt: string;
   finishedAt: string;
+}
+
+// ── Knowledge base (Phase 2) ─────────────────────────────────────────────────
+
+export interface KnowledgeEntryDTO {
+  id: string;
+  type: KnowledgeEntryType;
+  category: CategoryDTO | null;
+  question: string | null;
+  answer: string;
+  sourceThreadId: string | null;
+  isActive: boolean;
+  // True once an embedding has been computed for the current text. Edits clear
+  // it until the entry is re-embedded.
+  embedded: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ToneProfileDTO {
+  id: string;
+  content: string;
+  version: number;
+  updatedAt: string;
+}
+
+// Progress/outcome of the historical-mining batch job.
+export interface KnowledgeBuildResult {
+  threadsScanned: number;
+  examplesMined: number;
+  canonicalsWritten: number;
+  policiesWritten: number;
+  toneProfileUpdated: boolean;
+  entriesEmbedded: number;
+}
+
+export interface KnowledgeBuildStatus {
+  running: boolean;
+  stage: string | null;
+  lastResult: KnowledgeBuildResult | null;
+  lastError: string | null;
+  configured: boolean;
+  counts: { canonical: number; example: number; policy: number; unembedded: number };
+  hasTone: boolean;
 }

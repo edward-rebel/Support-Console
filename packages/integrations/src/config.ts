@@ -17,6 +17,10 @@ export interface IntegrationsConfig {
   anthropicApiKey?: string;
   openaiApiKey?: string;
   aiProviderOrder: AiProvider[];
+  // Key for the embeddings provider (Phase 2 knowledge base). Defaults to the
+  // OpenAI key since embeddings currently run on OpenAI; kept separate so the
+  // embeddings provider can be swapped without touching triage/drafting keys.
+  embeddingsApiKey?: string;
 }
 
 export const AI_PROVIDERS = ["anthropic", "openai"] as const;

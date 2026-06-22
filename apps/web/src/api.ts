@@ -1,9 +1,13 @@
 import type {
+  KnowledgeBuildStatus,
+  KnowledgeEntryDTO,
+  KnowledgeEntryType,
   OperatorDTO,
   Paginated,
   SyncResultDTO,
   ThreadDetailDTO,
   ThreadSummaryDTO,
+  ToneProfileDTO,
 } from "@ms/shared";
 
 // Empty default = same-origin (combined-service deployment). Local dev sets
@@ -120,4 +124,44 @@ export const api = {
   syncStatus: () => request<SyncStatus>("/sync/status"),
   gmailStatus: () => request<GmailStatus>("/auth/gmail/status"),
   gmailConnectUrl: () => `${API_URL}/auth/google`,
+
+  // ── Knowledge base (Phase 2) ──────────────────────────────────────────────
+  listKnowledge: (params: { type?: KnowledgeEntryType; category?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.type) qs.set("type", params.type);
+    if (params.category) qs.set("category", params.category);
+    const q = qs.toString();
+    return request<KnowledgeEntryDTO[]>(`/knowledge${q ? `?${q}` : ""}`);
+  },
+  knowledgeStatus: () => request<KnowledgeBuildStatus>("/knowledge/build/status"),
+  buildKnowledge: () =>
+    request<{ started: boolean } & KnowledgeBuildStatus>("/knowledge/build", {
+      method: "POST",
+    }),
+  getTone: () => request<ToneProfileDTO | null>("/knowledge/tone"),
+  saveTone: (content: string) =>
+    request<{ ok: boolean }>("/knowledge/tone", {
+      method: "PUT",
+      body: JSON.stringify({ content }),
+    }),
+  createKnowledge: (entry: {
+    type: KnowledgeEntryType;
+    categorySlug?: string;
+    question?: string;
+    answer: string;
+  }) =>
+    request<{ id: string }>("/knowledge", {
+      method: "POST",
+      body: JSON.stringify(entry),
+    }),
+  updateKnowledge: (
+    id: string,
+    patch: { question?: string; answer?: string; isActive?: boolean },
+  ) =>
+    request<{ ok: boolean }>(`/knowledge/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+  deleteKnowledge: (id: string) =>
+    request<{ ok: boolean }>(`/knowledge/${id}`, { method: "DELETE" }),
 };

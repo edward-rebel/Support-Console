@@ -34,3 +34,9 @@ export type ConnectionProvider = (typeof CONNECTION_PROVIDERS)[number];
 
 export const KNOWLEDGE_ENTRY_TYPES = ["canonical", "example", "policy"] as const;
 export type KnowledgeEntryType = (typeof KNOWLEDGE_ENTRY_TYPES)[number];
+
+// Dimension of the stored knowledge embeddings. Must match the embeddings
+// provider's output (OpenAI text-embedding-3-small = 1536) AND the pgvector
+// column width in @ms/db. Change all three together (provider, this constant,
+// a migration) if the embeddings model ever changes.
+export const EMBEDDING_DIMENSIONS = 1536;

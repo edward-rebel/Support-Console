@@ -5,3 +5,5 @@ export * from "./parse";
 export * from "./ingest";
 export * from "./ai";
 export * from "./triage";
+export * from "./embeddings";
+export * from "./knowledge";

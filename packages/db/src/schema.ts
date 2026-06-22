@@ -1,6 +1,8 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -8,9 +10,12 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  vector,
 } from "drizzle-orm/pg-core";
 import {
   CONNECTION_PROVIDERS,
+  EMBEDDING_DIMENSIONS,
+  KNOWLEDGE_ENTRY_TYPES,
   MESSAGE_DIRECTIONS,
   SENDER_RULE_KINDS,
   THREAD_STATUSES,
@@ -29,6 +34,9 @@ export const senderRuleKindEnum = pgEnum("sender_rule_kind", [
 ] as [string, ...string[]]);
 export const connectionProviderEnum = pgEnum("connection_provider", [
   ...CONNECTION_PROVIDERS,
+] as [string, ...string[]]);
+export const knowledgeEntryTypeEnum = pgEnum("knowledge_entry_type", [
+  ...KNOWLEDGE_ENTRY_TYPES,
 ] as [string, ...string[]]);
 
 // Reused column helpers.
@@ -154,6 +162,49 @@ export const connections = pgTable(
   }),
 );
 
+// ── knowledge_entries ─ the RAG corpus (spec §7) ─────────────────────────────
+// Mined/distilled from historical customer threads. `embedding` is null until
+// the entry is embedded (the build job fills it; editing an entry clears it so
+// it gets re-embedded). Retrieval = top-k cosine search scoped by category.
+export const knowledgeEntries = pgTable(
+  "knowledge_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    type: knowledgeEntryTypeEnum("type").notNull(),
+    categoryId: uuid("category_id").references(() => categories.id),
+    question: text("question"), // null for policies; the customer ask otherwise
+    answer: text("answer").notNull(), // the canonical/example/policy text
+    sourceThreadId: text("source_thread_id").references(() => threads.id, {
+      onDelete: "set null",
+    }),
+    embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }),
+    isActive: boolean("is_active").default(true).notNull(),
+    ...timestamps,
+  },
+  (t) => ({
+    typeIdx: index("knowledge_entries_type_idx").on(t.type),
+    categoryIdx: index("knowledge_entries_category_id_idx").on(t.categoryId),
+    // One example per source thread — keeps the mining job idempotent.
+    sourceUnique: uniqueIndex("knowledge_entries_source_thread_unique")
+      .on(t.sourceThreadId)
+      .where(sql`source_thread_id IS NOT NULL AND type = 'example'`),
+    // Approximate-nearest-neighbour index for cosine similarity retrieval.
+    embeddingIdx: index("knowledge_entries_embedding_idx").using(
+      "hnsw",
+      t.embedding.op("vector_cosine_ops"),
+    ),
+  }),
+);
+
+// ── tone_profile ─ brand voice, single active row (spec §7) ──────────────────
+export const toneProfile = pgTable("tone_profile", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  content: text("content").notNull(),
+  version: integer("version").default(1).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  ...timestamps,
+});
+
 // Convenience inferred types.
 export type User = typeof users.$inferSelect;
 export type Thread = typeof threads.$inferSelect;
@@ -163,3 +214,6 @@ export type NewMessage = typeof messages.$inferInsert;
 export type Category = typeof categories.$inferSelect;
 export type Connection = typeof connections.$inferSelect;
 export type SyncStateRow = typeof syncState.$inferSelect;
+export type KnowledgeEntry = typeof knowledgeEntries.$inferSelect;
+export type NewKnowledgeEntry = typeof knowledgeEntries.$inferInsert;
+export type ToneProfileRow = typeof toneProfile.$inferSelect;

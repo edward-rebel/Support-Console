@@ -42,6 +42,7 @@ export function loadEnv(): WorkerEnv {
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       openaiApiKey: process.env.OPENAI_API_KEY,
       aiProviderOrder: parseAiProviderOrder(process.env.AI_PROVIDER_ORDER),
+      embeddingsApiKey: process.env.EMBEDDINGS_API_KEY,
     },
   };
 }

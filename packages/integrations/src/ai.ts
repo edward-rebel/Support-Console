@@ -10,6 +10,16 @@ export const MODELS = {
     anthropic: "claude-haiku-4-5-20251001",
     openai: "gpt-5.4-mini",
   },
+  // Stronger model used to distill canonical answers / policies / tone from the
+  // mined history (Phase 2 knowledge base). Sonnet-tier per spec §4.
+  distill: {
+    anthropic: "claude-sonnet-4-6",
+    openai: "gpt-5.4",
+  },
+  // Embeddings run on OpenAI (text-embedding-3-small, 1536 dims). Swap here.
+  embeddings: {
+    openai: "text-embedding-3-small",
+  },
 } as const;
 
 // Bump when the triage prompt changes so we can tell which version classified a
@@ -166,6 +176,98 @@ export function configuredAiProviders(cfg: IntegrationsConfig): AiProvider[] {
 
 export function hasTriageProvider(cfg: IntegrationsConfig): boolean {
   return configuredAiProviders(cfg).length > 0;
+}
+
+// ── Structured generation (Phase 2 distillation) ────────────────────────────
+// Generic "emit JSON matching this schema" call against the stronger distill
+// model, with the same ordered provider failover as triage. Used to distill
+// canonical answers / policies / tone from mined history.
+export interface GenerateStructuredInput {
+  systemPrompt: string;
+  userPrompt: string;
+  // A strict-compatible JSON schema (additionalProperties:false, all keys
+  // required) describing the expected object.
+  schema: Record<string, unknown>;
+  schemaName: string;
+  maxTokens?: number;
+}
+
+async function generateWithAnthropic(
+  apiKey: string,
+  input: GenerateStructuredInput,
+): Promise<unknown> {
+  const client = makeAnthropic(apiKey);
+  const res = await client.messages.create({
+    model: MODELS.distill.anthropic,
+    max_tokens: input.maxTokens ?? 4096,
+    system: input.systemPrompt,
+    tools: [
+      {
+        name: input.schemaName,
+        description: "Emit the structured result for this task.",
+        input_schema: input.schema as Anthropic.Tool.InputSchema,
+      },
+    ],
+    tool_choice: { type: "tool", name: input.schemaName },
+    messages: [{ role: "user", content: input.userPrompt }],
+  });
+  const block = res.content.find((b) => b.type === "tool_use");
+  if (!block || block.type !== "tool_use") {
+    throw new Error("Anthropic returned no structured output");
+  }
+  return block.input;
+}
+
+async function generateWithOpenAI(
+  apiKey: string,
+  input: GenerateStructuredInput,
+): Promise<unknown> {
+  const client = makeOpenAI(apiKey);
+  const res = await client.responses.create({
+    model: MODELS.distill.openai,
+    reasoning: { effort: "medium" },
+    max_output_tokens: input.maxTokens ?? 8000,
+    input: [
+      { role: "system", content: input.systemPrompt },
+      { role: "user", content: input.userPrompt },
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: input.schemaName,
+        strict: true,
+        schema: input.schema,
+      },
+    },
+  });
+  const rawText = res.output_text;
+  if (!rawText) throw new Error("OpenAI returned an empty structured output");
+  return JSON.parse(rawText);
+}
+
+export async function generateStructured<T>(
+  cfg: IntegrationsConfig,
+  input: GenerateStructuredInput,
+): Promise<T> {
+  const errors: string[] = [];
+  for (const provider of configuredAiProviders(cfg)) {
+    try {
+      if (provider === "anthropic" && cfg.anthropicApiKey) {
+        return (await generateWithAnthropic(cfg.anthropicApiKey, input)) as T;
+      }
+      if (provider === "openai" && cfg.openaiApiKey) {
+        return (await generateWithOpenAI(cfg.openaiApiKey, input)) as T;
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      errors.push(`${provider}: ${message}`);
+    }
+  }
+  throw new Error(
+    errors.length > 0
+      ? `All distillation AI providers failed (${errors.join("; ")})`
+      : "No distillation AI provider is configured",
+  );
 }
 
 export async function classifySupportEmail(

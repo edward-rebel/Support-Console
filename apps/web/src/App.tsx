@@ -6,6 +6,7 @@ import { Login } from "./screens/Login";
 import { Inbox } from "./screens/Inbox";
 import { Review } from "./screens/Review";
 import { Settings } from "./screens/Settings";
+import { Knowledge } from "./screens/Knowledge";
 import { Placeholder } from "./screens/Placeholder";
 
 export function App() {
@@ -53,16 +54,7 @@ export function App() {
               />
             }
           />
-          <Route
-            path="/knowledge"
-            element={
-              <Placeholder
-                title="Knowledge Base"
-                phase="Phase 2"
-                blurb="What the AI draws from when it writes a reply"
-              />
-            }
-          />
+          <Route path="/knowledge" element={<Knowledge />} />
           <Route
             path="/insights"
             element={
