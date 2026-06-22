@@ -297,6 +297,7 @@ export function Inbox() {
               <Chip
                 label="Open"
                 primary
+                count={counts.open}
                 selected={statusFilter === "open"}
                 onClick={() => setStatusFilter("open")}
               />
@@ -529,11 +530,13 @@ function Chip({
   label,
   selected,
   primary,
+  count,
   onClick,
 }: {
   label: string;
   selected: boolean;
   primary?: boolean;
+  count?: number;
   onClick: () => void;
 }) {
   const bg = selected
@@ -554,9 +557,27 @@ function Chip({
         border: `1px solid ${selected ? "transparent" : "var(--border)"}`,
         background: bg,
         color: fg,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 7,
       }}
     >
       {label}
+      {count !== undefined && (
+        <span
+          style={{
+            fontFamily: "var(--mono)",
+            fontSize: 11,
+            fontWeight: 600,
+            padding: "1px 7px",
+            borderRadius: 999,
+            background: selected ? "rgba(255,255,255,0.22)" : "var(--surface-2)",
+            color: selected ? "#fff" : "var(--text-3)",
+          }}
+        >
+          {count}
+        </span>
+      )}
     </button>
   );
 }

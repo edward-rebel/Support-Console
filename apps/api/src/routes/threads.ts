@@ -37,19 +37,40 @@ function asConfidence(value: string | null): ConfidenceLevel | null {
     : null;
 }
 
-// A thread is "unanswered" when the most recent message in it is inbound (the
-// customer is waiting on us). This correctly treats threads we already replied
-// to — whether via this app or historically straight from Gmail — as answered,
-// since their latest message is outbound. A new customer reply flips a thread
-// back to unanswered automatically.
-function latestMessageInbound(): SQL {
-  return sql`(
-    select m.direction
-    from messages m
+// A thread is "unanswered" (Open) when:
+//   1. it isn't manually closed, AND
+//   2. its most recent message is inbound (the customer wrote last), AND
+//   3. we have NOT replied to this same customer at/after that latest inbound
+//      message — including replies that landed in a *sibling* Gmail thread.
+//
+// Condition 3 is what makes the Open list match Gmail: a single customer issue
+// often spans multiple Gmail threads (e.g. a duplicate inbound that Gmail
+// didn't thread together). If we answered the customer in one thread, the
+// duplicate shouldn't keep showing as unanswered. The check is time-aware, so a
+// genuine new question — or a follow-up sent *after* our last reply — is still
+// Open. Threads with no resolved customer email fall back to rules 1–2.
+function unansweredThread(): SQL {
+  const lastDirection = sql`(
+    select m.direction from messages m
     where m.thread_id = ${threads.id}
     order by coalesce(m.gmail_internal_date, m.created_at) desc, m.id desc
     limit 1
-  ) = 'inbound'`;
+  )`;
+  const lastMessageAt = sql`(
+    select coalesce(m.gmail_internal_date, m.created_at) from messages m
+    where m.thread_id = ${threads.id}
+    order by coalesce(m.gmail_internal_date, m.created_at) desc, m.id desc
+    limit 1
+  )`;
+  const repliedToCustomer = sql`exists (
+    select 1 from messages om
+    join threads ot on ot.id = om.thread_id
+    where om.direction = 'outbound'
+      and ${threads.customerEmail} is not null
+      and lower(ot.customer_email) = lower(${threads.customerEmail})
+      and coalesce(om.gmail_internal_date, om.created_at) >= ${lastMessageAt}
+  )`;
+  return sql`(${threads.status} <> 'closed' and ${lastDirection} = 'inbound' and not ${repliedToCustomer})`;
 }
 
 export function registerThreadRoutes(app: FastifyInstance): void {
@@ -74,12 +95,10 @@ export function registerThreadRoutes(app: FastifyInstance): void {
     const statusParam = request.query.status;
 
     const conds: SQL[] = [];
-    // "open" is a virtual filter: unanswered requests only — not manually
-    // closed, and the latest message is from the customer (inbound). Otherwise
-    // an exact status match.
+    // "open" is a virtual filter: genuinely unanswered requests (see
+    // unansweredThread). Otherwise an exact status match.
     if (statusParam === "open") {
-      conds.push(sql`${threads.status} <> 'closed'`);
-      conds.push(latestMessageInbound());
+      conds.push(unansweredThread());
     } else if (THREAD_STATUSES.includes(statusParam as ThreadStatus)) {
       conds.push(eq(threads.status, statusParam as ThreadStatus));
     }
@@ -180,9 +199,8 @@ export function registerThreadRoutes(app: FastifyInstance): void {
           customer: sql<number>`count(*) filter (where ${threads.isCustomer} is true or ${threads.isCustomer} is null)::int`,
           noise: sql<number>`count(*) filter (where ${threads.isCustomer} is false)::int`,
           pending: sql<number>`count(*) filter (where ${threads.isCustomer} is null)::int`,
-          // "Open" = customer requests still unanswered: not closed, and the
-          // latest message is inbound (customer awaiting a reply).
-          open: sql<number>`count(*) filter (where (${threads.isCustomer} is true or ${threads.isCustomer} is null) and ${threads.status} <> 'closed' and ${latestMessageInbound()})::int`,
+          // "Open" = customer requests still genuinely unanswered.
+          open: sql<number>`count(*) filter (where (${threads.isCustomer} is true or ${threads.isCustomer} is null) and ${unansweredThread()})::int`,
         })
         .from(threads);
       const r = rows[0];
