@@ -524,12 +524,19 @@ function DraftComposer({
     }
   };
   const send = async () => {
-    if (!draft || sending || !body.trim()) return;
+    if (sending || !body.trim()) return;
     setSending(true);
     setError(null);
     setNeedsReconnect(false);
     try {
-      await api.approveSend(draft.id, body);
+      // If there's an AI draft, approve-and-send it; otherwise send the
+      // operator's own typed reply through the manual reply path. Both go
+      // through the same single guarded server send path.
+      if (draft) {
+        await api.approveSend(draft.id, body);
+      } else {
+        await api.sendManualReply(threadId, body);
+      }
       // Sent — pull the thread so the just-sent message appears in the
       // conversation, then drop into the follow-up composer (an empty box) so
       // the operator can send another message if needed.
@@ -574,7 +581,7 @@ function DraftComposer({
     <div style={footerStyle}>
       <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 11 }}>
         <span style={{ width: 20, height: 20, borderRadius: 5, background: "var(--accent)", color: "var(--accent-fg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>✦</span>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>AI draft</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{draft ? "AI draft" : "Reply"}</span>
         {draft && <span style={{ fontSize: 12, color: "var(--text-3)" }}>· {draft.confidence ?? "—"} confidence</span>}
         {isMobile && draft && <ConfidenceDots confidence={draft.confidence} />}
       </div>
@@ -583,22 +590,21 @@ function DraftComposer({
         <div style={{ background: "var(--surface)", border: "1px dashed var(--border)", borderRadius: 10, padding: "18px", textAlign: "center", fontSize: 13.5, color: "var(--text-3)" }}>
           Loading…
         </div>
-      ) : !draft ? (
-        <div style={{ background: "var(--surface)", border: "1px dashed var(--border)", borderRadius: 10, padding: "18px", textAlign: "center" }}>
-          <div style={{ fontSize: 14, color: "var(--text-3)", marginBottom: 12 }}>
-            Generate a reply grounded in the knowledge base, the brand tone, and this customer's Shopify orders — then review and send.
-          </div>
-          <button onClick={() => void generate()} disabled={generating} style={{ cursor: generating ? "default" : "pointer", border: "none", background: "var(--accent)", color: "var(--accent-fg)", fontSize: 14, fontWeight: 600, padding: "11px 18px", borderRadius: 9, opacity: generating ? 0.6 : 1 }}>
-            {generating ? "Drafting…" : "✦ Generate draft"}
-          </button>
-        </div>
       ) : (
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          rows={isMobile ? 7 : 9}
-          style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)", fontSize: 14, fontFamily: "var(--sans)", lineHeight: 1.55, resize: "vertical" }}
-        />
+        <>
+          {!draft && (
+            <div style={{ fontSize: 13, color: "var(--text-3)", marginBottom: 9, lineHeight: 1.45 }}>
+              Write a reply below, or generate one grounded in the knowledge base, brand tone, and this customer's Shopify orders.
+            </div>
+          )}
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={isMobile ? 7 : 9}
+            placeholder={draft ? undefined : "Write your reply…"}
+            style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)", fontSize: 14, fontFamily: "var(--sans)", lineHeight: 1.55, resize: "vertical" }}
+          />
+        </>
       )}
 
       {draft?.recommendedAction && (
@@ -620,25 +626,21 @@ function DraftComposer({
       )}
 
       {/* primary action — full width on mobile */}
-      {draft && (
-        <div style={{ marginTop: 14 }}>
-          <button
-            onClick={() => void send()}
-            disabled={sending || !canSend || !body.trim()}
-            title={canSend ? undefined : "Reconnect Gmail to enable sending"}
-            style={{ width: isMobile ? "100%" : "auto", border: "none", cursor: sending || !canSend || !body.trim() ? "default" : "pointer", background: "var(--accent)", color: "var(--accent-fg)", fontSize: 14.5, fontWeight: 600, padding: "12px 22px", borderRadius: 9, opacity: sending || !canSend || !body.trim() ? 0.5 : 1 }}
-          >
-            {sending ? "Sending…" : "Approve & Send"}
-          </button>
-        </div>
-      )}
+      <div style={{ marginTop: 14 }}>
+        <button
+          onClick={() => void send()}
+          disabled={sending || !canSend || !body.trim()}
+          title={canSend ? undefined : "Reconnect Gmail to enable sending"}
+          style={{ width: isMobile ? "100%" : "auto", border: "none", cursor: sending || !canSend || !body.trim() ? "default" : "pointer", background: "var(--accent)", color: "var(--accent-fg)", fontSize: 14.5, fontWeight: 600, padding: "12px 22px", borderRadius: 9, opacity: sending || !canSend || !body.trim() ? 0.5 : 1 }}
+        >
+          {sending ? "Sending…" : draft ? "Approve & Send" : "Send reply"}
+        </button>
+      </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 12, flexWrap: "wrap" }}>
-        {draft && (
-          <button onClick={() => void generate()} disabled={generating} style={{ border: "1px solid var(--border)", cursor: generating ? "default" : "pointer", background: "var(--surface)", color: "var(--text-2)", fontSize: 14, fontWeight: 500, padding: "10px 15px", borderRadius: 9 }}>
-            {generating ? "…" : "Regenerate"}
-          </button>
-        )}
+        <button onClick={() => void generate()} disabled={generating} style={{ border: "1px solid var(--border)", cursor: generating ? "default" : "pointer", background: "var(--surface)", color: "var(--text-2)", fontSize: 14, fontWeight: 500, padding: "10px 15px", borderRadius: 9 }}>
+          {generating ? "…" : draft ? "Regenerate" : "✦ Generate draft"}
+        </button>
         {draft && (
           <button onClick={() => void dismiss()} style={{ border: "1px solid var(--border)", cursor: "pointer", background: "transparent", color: "var(--text-3)", fontSize: 14, fontWeight: 500, padding: "10px 13px", borderRadius: 9 }}>
             Discard draft
