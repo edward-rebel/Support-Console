@@ -348,6 +348,7 @@ export function Review() {
     <div
       style={{
         flex: isMobile ? 1 : "none",
+        minHeight: 0,
         width: isMobile ? "100%" : 392,
         overflow: "auto",
         padding: isMobile ? "16px 14px 24px" : "24px 22px",
@@ -413,7 +414,7 @@ export function Review() {
       {/* body */}
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden" }}>
         {(!isMobile || mobileTab === "conversation") && (
-          <div style={{ flex: isMobile ? 1 : 1.62, minWidth: 0, display: "flex", flexDirection: "column", borderRight: isMobile ? "none" : "1px solid var(--border)", background: "var(--surface-2)" }}>
+          <div style={{ flex: isMobile ? 1 : 1.62, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", borderRight: isMobile ? "none" : "1px solid var(--border)", background: "var(--surface-2)" }}>
             {conversationEl}
             {composerEl}
           </div>
