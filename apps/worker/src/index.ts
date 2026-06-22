@@ -1,11 +1,30 @@
-import { createDb } from "@ms/db";
+import { createDb, type Db } from "@ms/db";
 import {
+  autoDraftNewCustomerThreads,
   GmailNotConnectedError,
   hasTriageProvider,
   runSync,
   runTriage,
+  type IntegrationsConfig,
 } from "@ms/integrations";
 import { loadEnv } from "./env";
+
+// Triage + auto-draft new customer threads. Shared by --once and the loop.
+async function triageAndDraft(db: Db, cfg: IntegrationsConfig): Promise<void> {
+  if (!hasTriageProvider(cfg)) return;
+  const t = await runTriage(db, cfg);
+  console.log(
+    `[worker] triage: ${t.markedCustomer} customer, ${t.markedNoise} noise (${t.classifiedByModel} via model) of ${t.considered}`,
+  );
+  if (process.env.AUTO_DRAFT_ENABLED !== "false") {
+    const ad = await autoDraftNewCustomerThreads(db, cfg);
+    if (ad.considered > 0) {
+      console.log(
+        `[worker] auto-draft: ${ad.drafted} drafted, ${ad.failed} failed of ${ad.considered}`,
+      );
+    }
+  }
+}
 
 // Ingestion worker. Two modes:
 //   --once   run a single sync and exit (Railway cron job).
@@ -21,12 +40,7 @@ async function runOnce(): Promise<void> {
     console.log(
       `[worker] sync (${result.mode}): ${result.messagesUpserted} new messages, ${result.threadsUpserted} threads touched`,
     );
-    if (hasTriageProvider(env.integrations)) {
-      const t = await runTriage(db, env.integrations);
-      console.log(
-        `[worker] triage: ${t.markedCustomer} customer, ${t.markedNoise} noise (${t.classifiedByModel} via model) of ${t.considered}`,
-      );
-    }
+    await triageAndDraft(db, env.integrations);
   } catch (err) {
     if (err instanceof GmailNotConnectedError) {
       console.warn(`[worker] ${err.message} — skipping until connected.`);
@@ -51,12 +65,7 @@ async function runLoop(): Promise<void> {
       console.log(
         `[worker] sync (${result.mode}): ${result.messagesUpserted} new messages, ${result.threadsUpserted} threads touched`,
       );
-      if (hasTriageProvider(env.integrations)) {
-        const t = await runTriage(db, env.integrations);
-        console.log(
-          `[worker] triage: ${t.markedCustomer} customer, ${t.markedNoise} noise (${t.classifiedByModel} via model) of ${t.considered}`,
-        );
-      }
+      await triageAndDraft(db, env.integrations);
     } catch (err) {
       if (err instanceof GmailNotConnectedError) {
         console.warn(`[worker] ${err.message} — will retry next interval.`);

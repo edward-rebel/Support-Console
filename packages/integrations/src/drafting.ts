@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import {
   categories,
   drafts,
@@ -254,4 +254,72 @@ Write the reply now.`;
     .where(eq(threads.id, threadId));
 
   return inserted[0]!;
+}
+
+// ── auto-draft (after every sync) ────────────────────────────────────────────
+// Only consider genuinely new, recent customer threads so we don't draft the
+// entire historical backlog; a per-run cap bounds cost on a busy sync.
+const AUTO_DRAFT_WINDOW_DAYS = 14;
+const AUTO_DRAFT_MAX_PER_RUN = 12;
+const AUTO_DRAFT_CONCURRENCY = 3;
+
+export interface AutoDraftResult {
+  considered: number;
+  drafted: number;
+  failed: number;
+}
+
+// Generate a pending draft for each new customer thread that doesn't have one
+// yet, so a reply is always waiting for the operator to review/approve. NEVER
+// sends — sending still requires explicit human approval of a specific draft.
+export async function autoDraftNewCustomerThreads(
+  db: Db,
+  cfg: IntegrationsConfig,
+  opts: { windowDays?: number; max?: number } = {},
+): Promise<AutoDraftResult> {
+  const result: AutoDraftResult = { considered: 0, drafted: 0, failed: 0 };
+  if (!hasTriageProvider(cfg)) return result;
+  const windowDays = opts.windowDays ?? AUTO_DRAFT_WINDOW_DAYS;
+  const max = opts.max ?? AUTO_DRAFT_MAX_PER_RUN;
+
+  // Customer threads never drafted (status 'new'), recent, whose latest message
+  // is inbound (we haven't already replied), and with no active draft.
+  const rows = (await db.execute(sql`
+    SELECT t.id
+    FROM ${threads} t
+    WHERE t.is_customer = true
+      AND t.status = 'new'
+      AND t.last_message_at >= now() - make_interval(days => ${windowDays})
+      AND NOT EXISTS (
+        SELECT 1 FROM ${drafts} d
+        WHERE d.thread_id = t.id AND d.status NOT IN ('superseded', 'dismissed')
+      )
+      AND (
+        SELECT m.direction FROM ${messages} m
+        WHERE m.thread_id = t.id
+        ORDER BY m.gmail_internal_date DESC NULLS LAST
+        LIMIT 1
+      ) = 'inbound'
+    ORDER BY t.last_message_at DESC
+    LIMIT ${max}
+  `)) as unknown as { id: string }[];
+
+  result.considered = rows.length;
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < rows.length) {
+      const id = rows[cursor++]!.id;
+      try {
+        await generateDraft(db, cfg, id);
+        result.drafted++;
+      } catch {
+        // Leave the thread as 'new' so the next sync retries it.
+        result.failed++;
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(AUTO_DRAFT_CONCURRENCY, rows.length) }, worker),
+  );
+  return result;
 }

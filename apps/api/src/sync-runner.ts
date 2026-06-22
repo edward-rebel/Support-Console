@@ -1,4 +1,5 @@
 import {
+  autoDraftNewCustomerThreads,
   GmailNotConnectedError,
   hasTriageProvider,
   runSync,
@@ -66,6 +67,17 @@ export class SyncRunner {
           log(
             `Triage: ${t.markedCustomer} customer, ${t.markedNoise} noise (${t.classifiedByModel} via model) of ${t.considered}`,
           );
+          // Auto-draft new customer threads so a reply is always ready for
+          // review. Creates pending drafts only — NEVER sends (a human still
+          // approves each send). Disable with AUTO_DRAFT_ENABLED=false.
+          if (process.env.AUTO_DRAFT_ENABLED !== "false") {
+            const ad = await autoDraftNewCustomerThreads(this.db, this.cfg);
+            if (ad.considered > 0) {
+              log(
+                `Auto-draft: ${ad.drafted} drafted, ${ad.failed} failed of ${ad.considered}`,
+              );
+            }
+          }
         }
       } catch (err) {
         if (err instanceof GmailNotConnectedError) {
