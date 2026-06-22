@@ -3,6 +3,14 @@ import type { gmail_v1 } from "googleapis";
 // Pulls the fields we store from a full Gmail message payload. Pure function —
 // operates on the raw payload so it can be re-run from stored data (spec §3.4).
 
+export interface ParsedAttachment {
+  attachmentId: string | null;
+  filename: string;
+  mimeType: string;
+  size: number;
+  inline: boolean;
+}
+
 export interface ParsedMessage {
   id: string;
   threadId: string;
@@ -13,6 +21,7 @@ export interface ParsedMessage {
   bodyHtml: string | null;
   headers: Record<string, string>;
   internalDate: Date | null;
+  attachments: ParsedAttachment[];
 }
 
 const KEEP_HEADERS = new Set([
@@ -44,14 +53,42 @@ function collectHeaders(
   return out;
 }
 
-// Walk the MIME tree collecting the first text/plain and text/html bodies.
+function partHeader(
+  part: gmail_v1.Schema$MessagePart,
+  name: string,
+): string | null {
+  const h = part.headers?.find((x) => x.name?.toLowerCase() === name);
+  return h?.value ?? null;
+}
+
+// Walk the MIME tree collecting the first text/plain and text/html bodies plus
+// any attachment parts (anything with a filename / attachment disposition).
 function walkParts(
   part: gmail_v1.Schema$MessagePart | undefined,
-  acc: { text: string | null; html: string | null },
+  acc: { text: string | null; html: string | null; attachments: ParsedAttachment[] },
 ): void {
   if (!part) return;
   const mime = part.mimeType ?? "";
-  if (mime === "text/plain" && acc.text == null) {
+  const filename = part.filename ?? "";
+  const disposition = (partHeader(part, "content-disposition") ?? "").toLowerCase();
+  const hasAttachmentBody = Boolean(part.body?.attachmentId);
+
+  // Classify by disposition/attachment-body FIRST (not filename): a downloadable
+  // part is an attachment; otherwise it may still be the readable body even if a
+  // client tacked a filename onto it, so we must not drop it.
+  const isAttachment = hasAttachmentBody || disposition.includes("attachment");
+  if (isAttachment) {
+    const inline =
+      disposition.startsWith("inline") ||
+      (!disposition && mime.startsWith("image/") && Boolean(partHeader(part, "content-id")));
+    acc.attachments.push({
+      attachmentId: part.body?.attachmentId ?? null,
+      filename: filename || mime || "attachment",
+      mimeType: mime || "application/octet-stream",
+      size: part.body?.size ?? 0,
+      inline,
+    });
+  } else if (mime === "text/plain" && acc.text == null) {
     acc.text = decodeBody(part.body?.data);
   } else if (mime === "text/html" && acc.html == null) {
     acc.html = decodeBody(part.body?.data);
@@ -66,9 +103,14 @@ export function parseGmailMessage(
 ): ParsedMessage | null {
   if (!message.id || !message.threadId) return null;
   const headers = collectHeaders(message.payload?.headers);
-  const acc: { text: string | null; html: string | null } = {
+  const acc: {
+    text: string | null;
+    html: string | null;
+    attachments: ParsedAttachment[];
+  } = {
     text: null,
     html: null,
+    attachments: [],
   };
   walkParts(message.payload, acc);
 
@@ -89,6 +131,7 @@ export function parseGmailMessage(
       internalMs != null && Number.isFinite(internalMs)
         ? new Date(internalMs)
         : null,
+    attachments: acc.attachments,
   };
 }
 

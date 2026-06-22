@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CATEGORIES, type ThreadSummaryDTO } from "@ms/shared";
 import { api } from "../api";
@@ -11,11 +11,24 @@ import {
   confColor,
   confLabel,
   initialsFrom,
+  sentimentLabel,
+  sentimentTokens,
   shortTime,
   statusLabel,
   statusPulses,
   statusTokens,
 } from "../tokens";
+
+// Small reusable sentiment pill — only shown for notable (non-neutral) sentiment.
+function SentimentPill({ sentiment }: { sentiment: ThreadSummaryDTO["sentiment"] }) {
+  if (!sentiment || sentiment === "neutral") return null;
+  const tok = sentimentTokens(sentiment);
+  return (
+    <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 999, background: tok.bg, color: tok.fg, whiteSpace: "nowrap" }}>
+      {sentimentLabel(sentiment)}
+    </span>
+  );
+}
 
 type StatusFilter = "needs" | "all" | "sent";
 type Tab = "customer" | "noise";
@@ -35,6 +48,8 @@ export function Inbox() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [category, setCategory] = useState<string | null>(null);
   const [catMenuOpen, setCatMenuOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const catRef = useRef<HTMLDivElement | null>(null);
   const [threads, setThreads] = useState<ThreadSummaryDTO[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -106,12 +121,35 @@ export function Inbox() {
 
   const hasMore = threads.length < total;
 
+  // Close the category dropdown on outside-click / Escape.
+  useEffect(() => {
+    if (!catMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (catRef.current && !catRef.current.contains(e.target as Node)) {
+        setCatMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCatMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [catMenuOpen]);
+
   const reclassify = async (id: string, isCustomer: boolean) => {
-    setThreads((prev) => prev.filter((t) => t.id !== id)); // optimistic
+    const prev = threads;
+    setThreads((p) => p.filter((t) => t.id !== id)); // optimistic
+    setActionError(null);
     try {
       await api.reclassifyThread(id, isCustomer);
-    } finally {
       setReload((n) => n + 1);
+    } catch {
+      setThreads(prev); // restore on failure
+      setActionError("Couldn't update that thread. Please try again.");
     }
   };
 
@@ -207,19 +245,19 @@ export function Inbox() {
             <Segment
               active={tab === "customer"}
               onClick={() => setTab("customer")}
-              label="Customer requests"
+              label={isMobile ? "Customers" : "Customer requests"}
               count={counts.customer}
             />
             <Segment
               active={tab === "noise"}
               onClick={() => setTab("noise")}
-              label="Filtered out"
+              label={isMobile ? "Filtered" : "Filtered out"}
               count={counts.noise}
             />
           </div>
 
           {tab === "customer" && (
-            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", rowGap: 8 }}>
               <Chip
                 label="Needs Review"
                 primary
@@ -244,7 +282,7 @@ export function Inbox() {
                   margin: "0 3px",
                 }}
               />
-              <div style={{ position: "relative" }}>
+              <div style={{ position: "relative" }} ref={catRef}>
                 <button
                   onClick={() => setCatMenuOpen((o) => !o)}
                   style={{
@@ -309,6 +347,23 @@ export function Inbox() {
         </div>
       </div>
 
+      {actionError && (
+        <div style={{ flex: "none", padding: isMobile ? "8px 14px 0" : "8px 28px 0" }}>
+          <div
+            style={{
+              fontSize: 12.5,
+              color: "var(--warn-tx)",
+              background: "var(--warn-bg)",
+              border: "1px solid var(--warn-bd)",
+              borderRadius: 9,
+              padding: "8px 12px",
+            }}
+          >
+            {actionError}
+          </div>
+        </div>
+      )}
+
       {/* list */}
       <div
         style={{
@@ -322,6 +377,7 @@ export function Inbox() {
           <NoiseList
             rows={threads}
             loading={loading}
+            isMobile={isMobile}
             onNotNoise={(id) => reclassify(id, true)}
             onOpen={(id) => navigate(`/review/${id}`)}
           />
@@ -589,6 +645,7 @@ function ThreadRow({
                 {row.category.name}
               </span>
             )}
+            <SentimentPill sentiment={row.sentiment} />
             <span
               style={{
                 fontSize: 11,
@@ -805,6 +862,9 @@ function ThreadRow({
           </span>
         )}
       </div>
+      <div style={{ flex: "none", width: 92, display: "flex" }}>
+        <SentimentPill sentiment={row.sentiment} />
+      </div>
       <div
         style={{
           flex: "none",
@@ -908,11 +968,13 @@ function CatItem({
 function NoiseList({
   rows,
   loading,
+  isMobile,
   onNotNoise,
   onOpen,
 }: {
   rows: ThreadSummaryDTO[];
   loading: boolean;
+  isMobile: boolean;
   onNotNoise: (id: string) => void;
   onOpen: (id: string) => void;
 }) {
@@ -951,6 +1013,7 @@ function NoiseList({
             <NoiseRow
               key={row.id}
               row={row}
+              isMobile={isMobile}
               onNotNoise={onNotNoise}
               onOpen={onOpen}
             />
@@ -963,15 +1026,53 @@ function NoiseList({
 
 function NoiseRow({
   row,
+  isMobile,
   onNotNoise,
   onOpen,
 }: {
   row: ThreadSummaryDTO;
+  isMobile: boolean;
   onNotNoise: (id: string) => void;
   onOpen: (id: string) => void;
 }) {
   const domain = row.customerEmail?.split("@")[1] ?? "unknown";
   const [hover, setHover] = useState(false);
+
+  if (isMobile) {
+    return (
+      <div
+        onClick={() => onOpen(row.id)}
+        style={{ display: "flex", gap: 12, padding: "13px 14px", borderBottom: "1px solid var(--border-2)", alignItems: "flex-start" }}
+      >
+        <div style={{ flex: "none", width: 38, height: 38, borderRadius: 10, background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-3)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 13 }}>
+          {initialsFrom(row.customerName, row.customerEmail)}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-2)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {row.customerName ?? row.customerEmail ?? "Unknown"}
+          </div>
+          <div style={{ fontSize: 13, color: "var(--text-3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBottom: 6 }}>
+            {row.subject ?? "(no subject)"}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, fontFamily: "var(--mono)", padding: "2px 8px", borderRadius: 999, background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-3)" }}>
+              {domain}
+            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onNotNoise(row.id);
+              }}
+              style={{ cursor: "pointer", fontSize: 12.5, fontWeight: 500, padding: "7px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-2)" }}
+            >
+              Not noise?
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       onClick={() => onOpen(row.id)}

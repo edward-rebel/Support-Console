@@ -13,14 +13,14 @@ export function registerSyncRoutes(
       if (err) app.log.error({ err }, msg);
       else app.log.info(msg);
     });
-    return reply.send({ started, ...runner.status });
+    return reply.send({ started, ...(await runner.statusWithPersisted()) });
   });
 
   app.get(
     "/sync/status",
     { preHandler: requireAuth },
     async (_request, reply) => {
-      return reply.send(runner.status);
+      return reply.send(await runner.statusWithPersisted());
     },
   );
 }

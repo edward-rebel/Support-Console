@@ -16,12 +16,12 @@ export function AppLayout() {
     let active = true;
     void (async () => {
       try {
-        const [threads, gmail] = await Promise.all([
-          api.listThreads({ status: "needs_review" }),
+        const [counts, gmail] = await Promise.all([
+          api.threadCounts(),
           api.gmailStatus(),
         ]);
         if (!active) return;
-        setNeedsReview(threads.total);
+        setNeedsReview(counts.needsReview);
         setConnected(gmail.connected);
         setAccount(
           gmail.connected ? gmail.account : "Gmail not connected",

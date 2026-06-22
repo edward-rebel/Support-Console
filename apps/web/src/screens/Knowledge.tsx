@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import { useIsMobile } from "../useIsMobile";
 import type {
   KnowledgeBuildStatus,
   KnowledgeEntryDTO,
@@ -23,6 +24,7 @@ const card: React.CSSProperties = {
 };
 
 export function Knowledge() {
+  const isMobile = useIsMobile();
   const [status, setStatus] = useState<KnowledgeBuildStatus | null>(null);
   const [tab, setTab] = useState<KnowledgeEntryType>("canonical");
   const [category, setCategory] = useState<string>("");
@@ -30,8 +32,10 @@ export function Knowledge() {
   const [tone, setTone] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // On a transient poll failure, KEEP the previous status (don't null it) so a
+  // single blip mid-build doesn't make the UI think the build finished.
   const loadStatus = () =>
-    api.knowledgeStatus().then(setStatus).catch(() => setStatus(null));
+    api.knowledgeStatus().then(setStatus).catch(() => {});
   const loadEntries = () =>
     api
       .listKnowledge({ type: tab, category: category || undefined })
@@ -85,7 +89,7 @@ export function Knowledge() {
     (counts?.canonical ?? 0) + (counts?.example ?? 0) + (counts?.policy ?? 0) > 0;
 
   return (
-    <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: "24px 32px 40px" }}>
+    <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: isMobile ? "16px 14px 40px" : "24px 32px 40px" }}>
       <div style={{ maxWidth: 920, margin: "0 auto" }}>
         <div style={{ marginBottom: 22 }}>
           <h1 style={{ margin: "0 0 3px", fontSize: 21, fontWeight: 700, letterSpacing: "-0.015em" }}>

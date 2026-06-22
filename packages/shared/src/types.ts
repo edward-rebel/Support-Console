@@ -3,6 +3,7 @@ import type {
   DraftStatus,
   KnowledgeEntryType,
   MessageDirection,
+  Sentiment,
   ThreadStatus,
 } from "./enums";
 
@@ -25,9 +26,19 @@ export interface ThreadSummaryDTO {
   category: CategoryDTO | null;
   status: ThreadStatus;
   confidence: ConfidenceLevel | null;
+  sentiment: Sentiment | null;
   unread: boolean;
   snippet: string | null;
   lastMessageAt: string | null;
+}
+
+export interface AttachmentDTO {
+  id: string; // Gmail attachmentId
+  messageId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  inline: boolean;
 }
 
 export interface MessageDTO {
@@ -40,9 +51,12 @@ export interface MessageDTO {
   bodyText: string | null;
   bodyHtml: string | null;
   gmailInternalDate: string | null;
+  attachments: AttachmentDTO[];
 }
 
 export interface ThreadDetailDTO extends ThreadSummaryDTO {
+  // 1-2 sentence AI summary of the customer's request (null until triaged).
+  summary: string | null;
   messages: MessageDTO[];
 }
 
@@ -65,6 +79,54 @@ export interface SyncResultDTO {
   messagesUpserted: number;
   startedAt: string;
   finishedAt: string;
+}
+
+// Live sync status for the header. lastSyncAt is read from sync_state so it
+// survives process restarts (unlike the in-memory lastResult).
+export interface SyncStatusDTO {
+  syncing: boolean;
+  lastError: string | null;
+  lastSyncAt: string | null;
+  lastResult: SyncResultDTO | null;
+}
+
+// ── Insights (analytics dashboard) ───────────────────────────────────────────
+
+export interface CategoryVolumeDTO {
+  category: CategoryDTO | null; // null = uncategorized
+  count: number;
+}
+export interface StatusBreakdownDTO {
+  status: ThreadStatus;
+  count: number;
+}
+export interface SentimentBucketDTO {
+  sentiment: Sentiment;
+  count: number;
+}
+export interface TrendPointDTO {
+  date: string; // YYYY-MM-DD
+  received: number;
+  sent: number;
+}
+export interface InsightsDTO {
+  range: string;
+  totals: {
+    total: number;
+    customer: number;
+    noise: number;
+    untriaged: number;
+  };
+  byCategory: CategoryVolumeDTO[];
+  byStatus: StatusBreakdownDTO[];
+  sentiment: { available: boolean; buckets: SentimentBucketDTO[] };
+  activity: {
+    draftsGenerated: number;
+    sent: number;
+    approvalRate: number;
+    confidenceMix: { level: ConfidenceLevel; count: number }[];
+  };
+  trend: TrendPointDTO[];
 }
 
 // ── Knowledge base (Phase 2) ─────────────────────────────────────────────────

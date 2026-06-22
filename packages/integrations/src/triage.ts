@@ -82,6 +82,9 @@ Decide two things about an email:
    - sizing: size/fit questions, measurements, which size to pick.
    - discount: discount codes, promos, coupon problems, price questions.
    - other: anything else, or when is_customer is false.
+3. sentiment: the customer's emotional state — positive (happy, thankful), neutral (routine question), negative (unhappy, complaint), or frustrated (angry, escalating, repeated contact). Use "neutral" for non-customers.
+4. sentiment_score: 0 (very dissatisfied) to 100 (very satisfied). Use null if unclear or not a customer.
+5. request_summary: a 1-2 sentence, third-person summary of what the customer wants (e.g. "Asks whether the small harness fits a 12-inch neck and how to exchange it."). Empty string when is_customer is false.
 
 Always call the classify_support_email tool. Be decisive; use "other" when unsure of the category.`;
 
@@ -157,7 +160,13 @@ async function runOver(
     if (matched === "block") {
       await db
         .update(threads)
-        .set({ isCustomer: false, updatedAt: new Date() })
+        .set({
+          isCustomer: false,
+          sentiment: null,
+          sentimentScore: null,
+          summary: null,
+          updatedAt: new Date(),
+        })
         .where(eq(threads.id, row.id));
       result.blockedByRule++;
       result.markedNoise++;
@@ -193,7 +202,15 @@ async function runOver(
         : null;
       await db
         .update(threads)
-        .set({ isCustomer, categoryId, updatedAt: new Date() })
+        .set({
+          isCustomer,
+          categoryId,
+          // Sentiment/summary only apply to real customer threads.
+          sentiment: isCustomer ? out.sentiment : null,
+          sentimentScore: isCustomer ? out.sentimentScore : null,
+          summary: isCustomer ? out.requestSummary : null,
+          updatedAt: new Date(),
+        })
         .where(eq(threads.id, row.id));
       result.classifiedByModel++;
       if (isCustomer) result.markedCustomer++;
@@ -232,7 +249,14 @@ export async function reclassifyThread(
   if (opts.forceCustomer === false) {
     await db
       .update(threads)
-      .set({ isCustomer: false, categoryId: null, updatedAt: new Date() })
+      .set({
+        isCustomer: false,
+        categoryId: null,
+        sentiment: null,
+        sentimentScore: null,
+        summary: null,
+        updatedAt: new Date(),
+      })
       .where(eq(threads.id, threadId));
     return { isCustomer: false };
   }
@@ -240,6 +264,9 @@ export async function reclassifyThread(
   const hasAi = hasTriageProvider(cfg);
   let isCustomer: boolean = opts.forceCustomer ?? true;
   let categoryId: string | null = null;
+  let sentiment: string | null = null;
+  let sentimentScore: number | null = null;
+  let summary: string | null = null;
 
   if (hasAi) {
     const catRows = await db
@@ -261,6 +288,11 @@ export async function reclassifyThread(
       });
       if (opts.forceCustomer === undefined) isCustomer = out.isCustomer;
       categoryId = isCustomer ? (catIdBySlug.get(out.categorySlug) ?? null) : null;
+      if (isCustomer) {
+        sentiment = out.sentiment;
+        sentimentScore = out.sentimentScore;
+        summary = out.requestSummary;
+      }
     } catch {
       // Fall back to the forced/default flag with no category.
     }
@@ -268,7 +300,14 @@ export async function reclassifyThread(
 
   await db
     .update(threads)
-    .set({ isCustomer, categoryId, updatedAt: new Date() })
+    .set({
+      isCustomer,
+      categoryId,
+      sentiment,
+      sentimentScore,
+      summary,
+      updatedAt: new Date(),
+    })
     .where(eq(threads.id, threadId));
   return { isCustomer };
 }

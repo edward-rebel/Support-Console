@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DOMPurify from "dompurify";
 import type {
+  AttachmentDTO,
   BasedOnItemDTO,
   ConfidenceLevel,
   DraftDTO,
@@ -13,9 +14,15 @@ import type {
 import { api, SendBlockedError } from "../api";
 import { useIsMobile } from "../useIsMobile";
 import { ChevronLeftIcon, BagIcon } from "../icons";
-import { avatarTokens, categoryTokens, initialsFrom } from "../tokens";
+import {
+  avatarTokens,
+  categoryTokens,
+  confColor,
+  initialsFrom,
+  sentimentLabel,
+  sentimentTokens,
+} from "../tokens";
 
-// Open any links in sanitized email bodies safely in a new tab.
 DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   if (node.tagName === "A") {
     node.setAttribute("target", "_blank");
@@ -23,9 +30,6 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   }
 });
 
-// Sanitize email HTML for rendering: DOMPurify removes scripts/handlers; we also
-// drop inline styles/classes and layout attributes so messages render in our own
-// typography instead of forcing their own widths/colors.
 function sanitizeEmailHtml(html: string): string {
   return DOMPurify.sanitize(html, {
     FORBID_TAGS: ["style", "script", "iframe", "link", "meta", "head", "title", "form", "input", "button", "object", "embed", "svg"],
@@ -34,7 +38,35 @@ function sanitizeEmailHtml(html: string): string {
   });
 }
 
-// "Name <email>" → display parts.
+// Split a plain-text body into the visible reply and the quoted history that
+// follows, so long "On … wrote:" / ">" chains collapse behind a toggle.
+function splitQuoted(text: string): { visible: string; quoted: string } {
+  const markers = [
+    /\n[>\s]*On .+wrote:/,
+    /\n-----+ ?Original Message ?-----+/i,
+    /\n_{10,}/,
+    /\nFrom:\s.+\nSent:/i,
+    /\nGet Outlook for/i,
+  ];
+  let cut = text.length;
+  for (const m of markers) {
+    const idx = text.search(m);
+    if (idx > 40 && idx < cut) cut = idx;
+  }
+  // First run of quoted ">" lines.
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i]!.trim().startsWith(">")) {
+      const idx = lines.slice(0, i).join("\n").length;
+      if (idx > 40 && idx < cut) cut = idx;
+      break;
+    }
+  }
+  const visible = text.slice(0, cut).trim();
+  const quoted = visible ? text.slice(cut).trim() : "";
+  return { visible: visible || text.trim(), quoted };
+}
+
 function parseAddress(raw: string | null): { name: string | null; email: string | null } {
   if (!raw) return { name: null, email: null };
   const m = raw.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
@@ -45,121 +77,136 @@ function parseAddress(raw: string | null): { name: string | null; email: string 
 
 function formatTime(iso: string | null): string {
   if (!iso) return "";
-  return new Date(iso).toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+function dayLabel(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+}
+function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function hasBody(msg: MessageDTO): boolean {
-  return Boolean(msg.bodyText?.trim() || msg.bodyHtml?.trim());
+  return Boolean(msg.bodyText?.trim() || msg.bodyHtml?.trim() || msg.attachments.length);
 }
 
-function MessageBody({ msg }: { msg: MessageDTO }) {
-  // Prefer plain text (preserve line breaks); fall back to sanitized HTML.
-  const text = msg.bodyText?.trim();
-  if (text) {
-    return <div className="email-text">{text}</div>;
-  }
-  if (msg.bodyHtml?.trim()) {
-    return (
-      <div
-        className="email-html"
-        dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(msg.bodyHtml) }}
-      />
-    );
-  }
+function AttachmentChips({ items }: { items: AttachmentDTO[] }) {
+  if (!items.length) return null;
   return (
-    <div style={{ fontSize: 14, color: "var(--text-3)", fontStyle: "italic" }}>
-      (This message has no readable text content.)
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 11 }}>
+      {items.map((a, i) => {
+        const downloadable = Boolean(a.id);
+        const chip = (
+          <>
+            <span style={{ fontSize: 13 }}>📎</span>
+            <span style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {a.filename}
+            </span>
+            <span style={{ color: "var(--text-3)" }}>{fileSize(a.size)}</span>
+          </>
+        );
+        const style: React.CSSProperties = {
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 7,
+          fontSize: 12,
+          padding: "5px 10px",
+          borderRadius: 8,
+          background: "var(--surface-2)",
+          border: "1px solid var(--border)",
+          color: "var(--text-2)",
+          textDecoration: "none",
+        };
+        return downloadable ? (
+          <a key={a.id} href={api.attachmentUrl(a.messageId, a.id)} target="_blank" rel="noreferrer" style={style}>
+            {chip}
+          </a>
+        ) : (
+          <span key={`${a.messageId}:${a.filename}:${i}`} style={style}>{chip}</span>
+        );
+      })}
     </div>
   );
 }
 
-function MessageCard({
-  msg,
-  fallbackName,
-}: {
-  msg: MessageDTO;
-  fallbackName: string | null;
-}) {
+function MessageBody({ msg }: { msg: MessageDTO }) {
+  const [showQuoted, setShowQuoted] = useState(false);
+  const text = msg.bodyText?.trim();
+  if (text) {
+    const { visible, quoted } = splitQuoted(text);
+    return (
+      <>
+        <div className="email-text">{visible}</div>
+        {quoted && (
+          <>
+            <button
+              onClick={() => setShowQuoted((s) => !s)}
+              style={{ marginTop: 8, cursor: "pointer", fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--surface-2)", color: "var(--text-3)" }}
+            >
+              {showQuoted ? "Hide quoted history" : "••• Show quoted history"}
+            </button>
+            {showQuoted && (
+              <div className="email-text" style={{ marginTop: 8, color: "var(--text-3)", borderLeft: "2px solid var(--border)", paddingLeft: 12 }}>
+                {quoted}
+              </div>
+            )}
+          </>
+        )}
+      </>
+    );
+  }
+  if (msg.bodyHtml?.trim()) {
+    return <div className="email-html" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(msg.bodyHtml) }} />;
+  }
+  if (msg.attachments.length) {
+    return <div style={{ fontSize: 13, color: "var(--text-3)", fontStyle: "italic" }}>(Attachment only — no message text.)</div>;
+  }
+  return <div style={{ fontSize: 13, color: "var(--text-3)", fontStyle: "italic" }}>(This message has no readable text content.)</div>;
+}
+
+function MessageCard({ msg, fallbackName }: { msg: MessageDTO; fallbackName: string | null }) {
   const outbound = msg.direction === "outbound";
   const addr = parseAddress(msg.fromAddress);
-  const name = outbound
-    ? addr.name ?? "Molly & Stitch"
-    : addr.name ?? fallbackName ?? addr.email ?? "Customer";
+  const name = outbound ? addr.name ?? "Molly & Stitch" : addr.name ?? fallbackName ?? addr.email ?? "Customer";
   const av = avatarTokens(addr.email ?? name);
 
   return (
     <div
       style={{
         border: "1px solid var(--border)",
+        borderLeft: `3px solid ${outbound ? "var(--accent)" : "var(--border)"}`,
         borderRadius: 12,
         background: outbound ? "var(--accent-soft-bg)" : "var(--surface)",
         padding: "13px 15px",
         marginBottom: 12,
+        marginLeft: outbound ? "8%" : 0,
+        marginRight: outbound ? 0 : "8%",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-        <div
-          style={{
-            flex: "none",
-            width: 30,
-            height: 30,
-            borderRadius: "50%",
-            background: outbound ? "var(--accent)" : av.bg,
-            color: outbound ? "var(--accent-fg)" : av.fg,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 600,
-            fontSize: 12,
-          }}
-        >
+        <div style={{ flex: "none", width: 30, height: 30, borderRadius: "50%", background: outbound ? "var(--accent)" : av.bg, color: outbound ? "var(--accent-fg)" : av.fg, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 12 }}>
           {outbound ? "MS" : initialsFrom(name, addr.email)}
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontWeight: 600, fontSize: 13.5, color: "var(--text)" }}>
-              {name}
-            </span>
+            <span style={{ fontWeight: 600, fontSize: 13.5, color: "var(--text)" }}>{name}</span>
             {outbound && (
-              <span
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 600,
-                  letterSpacing: "0.03em",
-                  textTransform: "uppercase",
-                  color: "var(--accent-soft-fg)",
-                }}
-              >
-                Sent
-              </span>
+              <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase", color: "var(--accent-soft-fg)" }}>Sent</span>
             )}
             {addr.email && (
-              <span
-                style={{
-                  fontSize: 11.5,
-                  color: "var(--text-3)",
-                  fontFamily: "var(--mono)",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  minWidth: 0,
-                }}
-              >
+              <span style={{ fontSize: 11.5, color: "var(--text-3)", fontFamily: "var(--mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
                 {addr.email}
               </span>
             )}
           </div>
         </div>
-        <span style={{ flex: "none", fontSize: 12, color: "var(--text-3)" }}>
-          {formatTime(msg.gmailInternalDate)}
-        </span>
+        <span style={{ flex: "none", fontSize: 12, color: "var(--text-3)" }}>{formatTime(msg.gmailInternalDate)}</span>
       </div>
       <MessageBody msg={msg} />
+      <AttachmentChips items={msg.attachments} />
     </div>
   );
 }
@@ -172,7 +219,9 @@ export function Review() {
   const [error, setError] = useState<string | null>(null);
   const [reclassifying, setReclassifying] = useState(false);
   const [draft, setDraft] = useState<DraftDTO | null>(null);
+  const [draftLoading, setDraftLoading] = useState(true);
   const [canSend, setCanSend] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"conversation" | "context">("conversation");
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const reclassify = async (isCustomer: boolean) => {
@@ -189,6 +238,10 @@ export function Review() {
   useEffect(() => {
     if (!id) return;
     let active = true;
+    // Reset per-thread state so navigating review→review never bleeds the prior
+    // thread's content or sticks a stale error screen.
+    setThread(null);
+    setError(null);
     void (async () => {
       try {
         const t = await api.getThread(id);
@@ -202,29 +255,25 @@ export function Review() {
     };
   }, [id]);
 
-  // Load any existing draft + whether Gmail can send.
   useEffect(() => {
     if (!id) return;
     let active = true;
-    void api
-      .getDraft(id)
-      .then((d) => active && setDraft(d))
-      .catch(() => {});
-    void api
-      .gmailStatus()
-      .then((s) => active && setCanSend(s.canSend))
-      .catch(() => {});
+    setDraft(null);
+    setDraftLoading(true);
+    void Promise.all([
+      api.getDraft(id).then((d) => active && setDraft(d)).catch(() => {}),
+      api.gmailStatus().then((s) => active && setCanSend(s.canSend)).catch(() => {}),
+    ]).finally(() => active && setDraftLoading(false));
     return () => {
       active = false;
     };
   }, [id]);
 
-  // Jump to the newest message (bottom) once the thread loads, like an inbox.
   useEffect(() => {
-    if (thread && scrollRef.current && !isMobile) {
+    if (thread && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [thread, isMobile]);
+  }, [thread, mobileTab]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -234,531 +283,168 @@ export function Review() {
     return () => window.removeEventListener("keydown", onKey);
   }, [navigate]);
 
-  if (error) {
-    return <div style={{ padding: 40, color: "var(--text-3)" }}>{error}</div>;
-  }
-  if (!thread) {
-    return <div style={{ padding: 40, color: "var(--text-3)" }}>Loading…</div>;
-  }
+  if (error) return <div style={{ padding: 40, color: "var(--text-3)" }}>{error}</div>;
+  if (!thread) return <div style={{ padding: 40, color: "var(--text-3)" }}>Loading…</div>;
 
   const cat = categoryTokens(thread.category?.slug);
-  // Show the full back-and-forth, oldest first / newest last (API returns asc).
   const conversation = thread.messages.filter(hasBody);
   const shown = conversation.length > 0 ? conversation : thread.messages;
+  const isSent = thread.status === "sent" || draft?.status === "sent";
 
-  return (
+  // Conversation column with day dividers.
+  const conversationEl = (
     <div
+      ref={scrollRef}
       style={{
         flex: 1,
         minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
+        overflow: "auto",
+        padding: isMobile ? "16px 14px" : "22px 26px",
       }}
     >
-      {/* review header */}
-      <div
-        style={{
-          flex: "none",
-          height: 60,
-          display: "flex",
-          alignItems: "center",
-          gap: isMobile ? 10 : 13,
-          padding: isMobile ? "0 14px" : "0 22px",
-          borderBottom: "1px solid var(--border)",
-          background: "var(--surface)",
-        }}
-      >
-        <button
-          onClick={() => navigate("/inbox")}
-          style={{
-            cursor: "pointer",
-            width: 32,
-            height: 32,
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "var(--surface)",
-            color: "var(--text-2)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <ChevronLeftIcon size={16} strokeWidth={2.2} />
-        </button>
-        {thread.category && (
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.02em",
-              padding: "3px 10px",
-              borderRadius: 999,
-              background: cat.bg,
-              color: cat.fg,
-            }}
-          >
-            {thread.category.name}
+      {shown.length > 1 && (
+        <div style={{ textAlign: "center", marginBottom: 16 }}>
+          <span style={{ fontSize: 12, color: "var(--text-3)", background: "var(--surface)", border: "1px solid var(--border)", padding: "3px 12px", borderRadius: 999 }}>
+            {shown.length} messages in this conversation
           </span>
-        )}
-        <div
-          style={{
-            fontSize: 15,
-            fontWeight: 600,
-            color: "var(--text)",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            maxWidth: isMobile ? 200 : 520,
-            flex: isMobile ? 1 : undefined,
-          }}
-        >
-          {thread.subject ?? "(no subject)"}
         </div>
-        <div
-          style={{
-            marginLeft: "auto",
-            display: "flex",
-            alignItems: "center",
-            gap: 9,
-            flex: "none",
-          }}
-        >
-          {!isMobile && (
-            <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>
-              Draft confidence
-            </span>
-          )}
-          <ConfidenceDots confidence={draft?.confidence ?? null} />
-        </div>
-      </div>
-
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-          flexDirection: isMobile ? "column" : "row",
-          overflow: isMobile ? "auto" : "hidden",
-        }}
-      >
-        {/* left: thread + composer */}
-        <div
-          style={{
-            flex: isMobile ? "none" : 1.62,
-            minWidth: 0,
-            width: isMobile ? "100%" : undefined,
-            display: "flex",
-            flexDirection: "column",
-            borderRight: isMobile ? "none" : "1px solid var(--border)",
-            background: "var(--surface-2)",
-          }}
-        >
-          <div
-            ref={scrollRef}
-            style={{
-              flex: isMobile ? "none" : 1,
-              minHeight: 0,
-              overflow: isMobile ? "visible" : "auto",
-              padding: isMobile ? "16px 14px" : "22px 26px",
-            }}
-          >
-            {shown.length > 1 && (
-              <div style={{ textAlign: "center", marginBottom: 16 }}>
-                <span
-                  style={{
-                    fontSize: 12,
-                    color: "var(--text-3)",
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    padding: "3px 12px",
-                    borderRadius: 999,
-                  }}
-                >
-                  {shown.length} messages in this conversation
+      )}
+      {shown.map((m, i) => {
+        const prev = shown[i - 1];
+        const showDay = !prev || dayLabel(prev.gmailInternalDate) !== dayLabel(m.gmailInternalDate);
+        return (
+          <div key={m.id}>
+            {showDay && m.gmailInternalDate && (
+              <div style={{ textAlign: "center", margin: "6px 0 14px" }}>
+                <span style={{ fontSize: 11, color: "var(--text-3)", fontWeight: 600, letterSpacing: "0.03em" }}>
+                  {dayLabel(m.gmailInternalDate)}
                 </span>
               </div>
             )}
-            {shown.map((m) => (
-              <MessageCard key={m.id} msg={m} fallbackName={thread.customerName} />
-            ))}
+            <MessageCard msg={m} fallbackName={thread.customerName} />
           </div>
-
-          <DraftComposer
-            threadId={thread.id}
-            isCustomer={thread.isCustomer}
-            draft={draft}
-            setDraft={setDraft}
-            canSend={canSend}
-            reclassifying={reclassifying}
-            onReclassify={reclassify}
-            onSent={() => navigate("/inbox")}
-            isMobile={isMobile}
-          />
-        </div>
-
-        {/* right: context rail */}
-        <div
-          style={{
-            flex: "none",
-            width: isMobile ? "100%" : 392,
-            overflow: isMobile ? "visible" : "auto",
-            padding: isMobile ? "18px 16px 24px" : "24px 22px",
-            background: "var(--surface-2)",
-            borderTop: isMobile ? "1px solid var(--border)" : "none",
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "var(--mono)",
-              fontSize: 11,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              color: "var(--text-3)",
-              marginBottom: 13,
-            }}
-          >
-            Context
-          </div>
-          {id && <ShopifyContextPanel threadId={id} email={thread.customerEmail} />}
-        </div>
-      </div>
+        );
+      })}
     </div>
   );
-}
 
-// ── Shopify order/customer context (read-only) ───────────────────────────────
-function statusColor(status: string | null): { bg: string; fg: string } {
-  const s = (status ?? "").toUpperCase();
-  if (["PAID", "FULFILLED"].includes(s))
-    return { bg: "var(--accent-soft-bg)", fg: "var(--accent-soft-fg)" };
-  if (["REFUNDED", "UNFULFILLED", "PARTIALLY_REFUNDED", "VOIDED"].includes(s))
-    return { bg: "var(--cat-exchange-bg)", fg: "var(--cat-exchange-fg)" };
-  return { bg: "var(--surface-2)", fg: "var(--text-3)" };
-}
+  const composerEl = (
+    <DraftComposer
+      threadId={thread.id}
+      isCustomer={thread.isCustomer}
+      draft={draft}
+      setDraft={setDraft}
+      canSend={canSend}
+      loading={draftLoading}
+      isSent={isSent}
+      reclassifying={reclassifying}
+      onReclassify={reclassify}
+      onSent={() => navigate("/inbox")}
+      isMobile={isMobile}
+    />
+  );
 
-function OrderCard({ order }: { order: ShopifyOrderDTO }) {
-  return (
+  const contextEl = (
     <div
       style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: 11,
-        padding: "12px 13px",
-        marginBottom: 9,
+        flex: isMobile ? 1 : "none",
+        width: isMobile ? "100%" : 392,
+        overflow: "auto",
+        padding: isMobile ? "16px 14px 24px" : "24px 22px",
+        background: "var(--surface-2)",
+        borderTop: "none",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
-        <span style={{ fontWeight: 700, fontSize: 13.5, fontFamily: "var(--mono)" }}>
-          {order.name}
-        </span>
-        <span style={{ fontSize: 12, color: "var(--text-3)" }}>
-          {formatTime(order.createdAt)}
-        </span>
-        <span style={{ marginLeft: "auto", fontWeight: 600, fontSize: 13, color: "var(--text)" }}>
-          {order.total ? `${order.total} ${order.currency ?? ""}` : ""}
-        </span>
+      <div style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-3)", marginBottom: 13 }}>
+        Context
       </div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-        {[order.financialStatus, order.fulfillmentStatus]
-          .filter((s): s is string => Boolean(s))
-          .map((s) => {
-            const c = statusColor(s);
-            return (
-              <span
-                key={s}
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 600,
-                  letterSpacing: "0.02em",
-                  padding: "2px 8px",
-                  borderRadius: 999,
-                  background: c.bg,
-                  color: c.fg,
-                }}
-              >
-                {s.replace(/_/g, " ")}
-              </span>
-            );
-          })}
-      </div>
-      {order.lineItems.length > 0 && (
-        <div style={{ fontSize: 12.5, color: "var(--text-2)", lineHeight: 1.5 }}>
-          {order.lineItems.map((li, i) => (
-            <div key={i} style={{ display: "flex", gap: 6 }}>
-              <span style={{ color: "var(--text-3)" }}>{li.quantity}×</span>
-              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-                {li.title}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-      {order.tracking.length > 0 && (
-        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-          {order.tracking.map((t, i) => (
-            <div key={i} style={{ fontSize: 12, fontFamily: "var(--mono)" }}>
-              {t.company ? `${t.company}: ` : ""}
-              {t.url ? (
-                <a href={t.url} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
-                  {t.number ?? "track"}
-                </a>
-              ) : (
-                <span style={{ color: "var(--text-2)" }}>{t.number}</span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      {thread.summary && <SummaryCard summary={thread.summary} />}
+      {id && <ShopifyContextPanel key={id} threadId={id} email={thread.customerEmail} />}
     </div>
   );
-}
-
-function ShopifyContextPanel({ threadId, email }: { threadId: string; email: string | null }) {
-  const [configured, setConfigured] = useState<boolean | null>(null);
-  const [ctx, setCtx] = useState<ShopifyContextDTO | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [orderQuery, setOrderQuery] = useState("");
-
-  const resolve = () => {
-    setLoading(true);
-    api
-      .threadShopify(threadId)
-      .then(setCtx)
-      .catch(() => setCtx({ found: false, customer: null, orders: [], matchedBy: null }))
-      .finally(() => setLoading(false));
-  };
-
-  const findOrder = (order: string) => {
-    setLoading(true);
-    api
-      .threadShopifyOrder(threadId, order)
-      .then(setCtx)
-      .catch(() => setCtx({ found: false, customer: null, orders: [], matchedBy: null }))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    let active = true;
-    void api
-      .shopifyStatus()
-      .then((s) => {
-        if (!active) return;
-        setConfigured(s.configured);
-        if (s.configured) resolve();
-      })
-      .catch(() => active && setConfigured(false));
-    return () => {
-      active = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threadId]);
-
-  if (configured === false) {
-    return (
-      <div
-        style={{
-          background: "var(--surface)",
-          border: "1px dashed var(--border)",
-          borderRadius: 12,
-          padding: "18px 16px",
-          textAlign: "center",
-        }}
-      >
-        <div style={{ margin: "0 auto 8px", color: "var(--text-3)" }}>
-          <BagIcon size={18} strokeWidth={1.8} />
-        </div>
-        <div style={{ fontSize: 13, color: "var(--text-3)" }}>
-          Shopify isn't connected. Add the store credentials to see order context.
-        </div>
-      </div>
-    );
-  }
-
-  const matchLabel =
-    ctx?.matchedBy === "order"
-      ? "matched by order number"
-      : ctx?.matchedBy === "email"
-        ? "matched by email"
-        : ctx?.matchedBy === "pinned"
-          ? "pinned order"
-          : null;
 
   return (
-    <div>
-      {/* manual order lookup */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-        <input
-          value={orderQuery}
-          onChange={(e) => setOrderQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && orderQuery.trim()) findOrder(orderQuery.trim());
-          }}
-          placeholder="Look up order # (e.g. 21142)"
-          style={{
-            flex: 1,
-            minWidth: 0,
-            height: 32,
-            padding: "0 10px",
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "var(--surface)",
-            color: "var(--text)",
-            fontSize: 12.5,
-            fontFamily: "var(--mono)",
-          }}
-        />
+    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* header */}
+      <div style={{ flex: "none", height: 60, display: "flex", alignItems: "center", gap: isMobile ? 10 : 13, padding: isMobile ? "0 14px" : "0 22px", borderBottom: "1px solid var(--border)", background: "var(--surface)" }}>
         <button
-          onClick={() => orderQuery.trim() && findOrder(orderQuery.trim())}
-          style={{
-            cursor: "pointer",
-            fontSize: 12.5,
-            fontWeight: 600,
-            padding: "0 12px",
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "var(--surface)",
-            color: "var(--text-2)",
-          }}
+          onClick={() => navigate("/inbox")}
+          aria-label="Back"
+          style={{ cursor: "pointer", width: isMobile ? 40 : 32, height: isMobile ? 40 : 32, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-2)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}
         >
-          Find
+          <ChevronLeftIcon size={16} strokeWidth={2.2} />
         </button>
+        {thread.category && !isMobile && (
+          <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.02em", padding: "3px 10px", borderRadius: 999, background: cat.bg, color: cat.fg, flex: "none" }}>
+            {thread.category.name}
+          </span>
+        )}
+        {thread.sentiment && thread.sentiment !== "neutral" && (
+          <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: sentimentTokens(thread.sentiment).bg, color: sentimentTokens(thread.sentiment).fg, flex: "none", whiteSpace: "nowrap" }}>
+            {sentimentLabel(thread.sentiment)}
+          </span>
+        )}
+        <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 }}>
+          {thread.subject ?? "(no subject)"}
+        </div>
+        {!isMobile && (
+          <div style={{ display: "flex", alignItems: "center", gap: 9, flex: "none" }}>
+            <span style={{ fontSize: 12.5, color: "var(--text-3)" }}>Draft confidence</span>
+            <ConfidenceDots confidence={draft?.confidence ?? null} />
+          </div>
+        )}
       </div>
 
-      <button
-        onClick={resolve}
-        style={{
-          cursor: "pointer",
-          fontSize: 12,
-          fontWeight: 600,
-          padding: "5px 10px",
-          borderRadius: 7,
-          border: "1px solid var(--border)",
-          background: "transparent",
-          color: "var(--text-3)",
-          marginBottom: 12,
-        }}
-      >
-        ↺ Auto-match{email ? ` (${email})` : ""}
-      </button>
-
-      {loading && (
-        <div style={{ fontSize: 13, color: "var(--text-3)", padding: "8px 0" }}>
-          Looking up Shopify…
-        </div>
-      )}
-
-      {!loading && ctx && !ctx.found && (
-        <div
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: 11,
-            padding: "14px 14px",
-            fontSize: 13,
-            color: "var(--text-3)",
-          }}
-        >
-          No matching customer or order found. Try a specific order number above.
-        </div>
-      )}
-
-      {!loading && ctx?.found && (
-        <>
-          {matchLabel && (
-            <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 8 }}>
-              {matchLabel}
-            </div>
-          )}
-          {ctx.customer && (
-            <div
-              style={{
-                background: "var(--surface)",
-                border: "1px solid var(--border)",
-                borderRadius: 11,
-                padding: "13px 14px",
-                marginBottom: 12,
-              }}
+      {/* mobile tab switch */}
+      {isMobile && (
+        <div style={{ flex: "none", display: "flex", gap: 4, padding: "10px 14px 0" }}>
+          {(["conversation", "context"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setMobileTab(t)}
+              style={{ flex: 1, cursor: "pointer", fontSize: 13, fontWeight: 600, padding: "9px 0", borderRadius: 9, border: "1px solid var(--border)", background: mobileTab === t ? "var(--accent-soft-bg)" : "var(--surface)", color: mobileTab === t ? "var(--accent-soft-fg)" : "var(--text-3)" }}
             >
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>
-                {ctx.customer.name ?? ctx.customer.email ?? "Customer"}
-              </div>
-              {ctx.customer.email && (
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "var(--text-3)",
-                    fontFamily: "var(--mono)",
-                    marginBottom: 8,
-                  }}
-                >
-                  {ctx.customer.email}
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 16, fontSize: 12.5 }}>
-                <span style={{ color: "var(--text-3)" }}>
-                  Orders:{" "}
-                  <b style={{ color: "var(--text)" }}>{ctx.customer.ordersCount ?? "—"}</b>
-                </span>
-                {ctx.customer.totalSpent && (
-                  <span style={{ color: "var(--text-3)" }}>
-                    Spent:{" "}
-                    <b style={{ color: "var(--text)" }}>
-                      {ctx.customer.totalSpent} {ctx.customer.currency ?? ""}
-                    </b>
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-          <div
-            style={{
-              fontFamily: "var(--mono)",
-              fontSize: 10.5,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              color: "var(--text-3)",
-              marginBottom: 8,
-            }}
-          >
-            {ctx.orders.length === 1 ? "Order" : "Recent orders"}
-          </div>
-          {ctx.orders.map((o) => (
-            <OrderCard key={o.name} order={o} />
+              {t === "conversation" ? "Conversation" : "Order context"}
+            </button>
           ))}
-        </>
+        </div>
       )}
+
+      {/* body */}
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden" }}>
+        {(!isMobile || mobileTab === "conversation") && (
+          <div style={{ flex: isMobile ? 1 : 1.62, minWidth: 0, display: "flex", flexDirection: "column", borderRight: isMobile ? "none" : "1px solid var(--border)", background: "var(--surface-2)" }}>
+            {conversationEl}
+            {composerEl}
+          </div>
+        )}
+        {(!isMobile || mobileTab === "context") && contextEl}
+      </div>
     </div>
   );
 }
 
-// ── Draft confidence + composer (Phase 3) ────────────────────────────────────
 function ConfidenceDots({ confidence }: { confidence: ConfidenceLevel | null }) {
   const lit = confidence === "high" ? 3 : confidence === "medium" ? 2 : confidence === "low" ? 1 : 0;
-  const color =
-    confidence === "high"
-      ? "var(--conf-high)"
-      : confidence === "medium"
-        ? "var(--accent)"
-        : "var(--warn-tx)";
+  const color = confidence ? confColor(confidence) : "var(--dot-off)";
   return (
     <>
       {[0, 1, 2].map((i) => (
-        <i
-          key={i}
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            background: i < lit ? color : "var(--dot-off)",
-            display: "inline-block",
-          }}
-        />
+        <i key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: i < lit ? color : "var(--dot-off)", display: "inline-block" }} />
       ))}
-      <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-3)" }}>
-        {confidence ?? "—"}
-      </span>
+      <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-3)" }}>{confidence ?? "—"}</span>
     </>
+  );
+}
+
+function SummaryCard({ summary }: { summary: string }) {
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "13px 14px", marginBottom: 16 }}>
+      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-3)", marginBottom: 6 }}>
+        Request
+      </div>
+      <div style={{ fontSize: 13.5, color: "var(--text-2)", lineHeight: 1.5 }}>{summary}</div>
+    </div>
   );
 }
 
@@ -776,6 +462,8 @@ function DraftComposer({
   draft,
   setDraft,
   canSend,
+  loading,
+  isSent,
   reclassifying,
   onReclassify,
   onSent,
@@ -786,6 +474,8 @@ function DraftComposer({
   draft: DraftDTO | null;
   setDraft: (d: DraftDTO | null) => void;
   canSend: boolean;
+  loading: boolean;
+  isSent: boolean;
   reclassifying: boolean;
   onReclassify: (isCustomer: boolean) => void;
   onSent: () => void;
@@ -815,7 +505,6 @@ function DraftComposer({
       setGenerating(false);
     }
   };
-
   const dismiss = async () => {
     if (!draft) return;
     try {
@@ -825,7 +514,6 @@ function DraftComposer({
       /* ignore */
     }
   };
-
   const send = async () => {
     if (!draft || sending || !body.trim()) return;
     setSending(true);
@@ -833,6 +521,9 @@ function DraftComposer({
     setNeedsReconnect(false);
     try {
       await api.approveSend(draft.id, body);
+      // Reflect the actually-sent text so the "Replied" card matches what the
+      // customer received (not the original AI draft).
+      setDraft({ ...draft, body, status: "sent" });
       setSent(true);
     } catch (e) {
       if (e instanceof SendBlockedError) {
@@ -853,39 +544,18 @@ function DraftComposer({
     padding: isMobile ? "14px 16px 16px" : "16px 26px 18px",
   };
 
-  if (sent) {
+  // Terminal "replied" state — no editable composer once a reply was sent.
+  if ((isSent || sent) && draft) {
     return (
       <div style={footerStyle}>
-        <div
-          style={{
-            background: "var(--accent-soft-bg)",
-            color: "var(--accent-soft-fg)",
-            borderRadius: 10,
-            padding: "16px 18px",
-            fontSize: 14,
-            fontWeight: 600,
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
-          ✓ Reply sent on the Gmail thread.
-          <button
-            onClick={onSent}
-            style={{
-              marginLeft: "auto",
-              cursor: "pointer",
-              border: "1px solid var(--border)",
-              background: "var(--surface)",
-              color: "var(--text-2)",
-              fontSize: 13,
-              fontWeight: 600,
-              padding: "7px 13px",
-              borderRadius: 8,
-            }}
-          >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-soft-fg)" }}>✓ Replied</span>
+          <button onClick={onSent} style={{ marginLeft: "auto", cursor: "pointer", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-2)", fontSize: 13, fontWeight: 600, padding: "7px 13px", borderRadius: 8 }}>
             Back to inbox
           </button>
+        </div>
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "12px 14px", fontSize: 13.5, color: "var(--text-2)", lineHeight: 1.55, whiteSpace: "pre-wrap", maxHeight: 220, overflow: "auto" }}>
+          {draft.body}
         </div>
       </div>
     );
@@ -894,83 +564,32 @@ function DraftComposer({
   return (
     <div style={footerStyle}>
       <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 11 }}>
-        <span
-          style={{
-            width: 20,
-            height: 20,
-            borderRadius: 5,
-            background: "var(--accent)",
-            color: "var(--accent-fg)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 11,
-            fontWeight: 700,
-          }}
-        >
-          ✦
-        </span>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
-          AI draft
-        </span>
-        {draft && (
-          <span style={{ fontSize: 12, color: "var(--text-3)" }}>
-            · {draft.confidence ?? "—"} confidence
-          </span>
-        )}
+        <span style={{ width: 20, height: 20, borderRadius: 5, background: "var(--accent)", color: "var(--accent-fg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>✦</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>AI draft</span>
+        {draft && <span style={{ fontSize: 12, color: "var(--text-3)" }}>· {draft.confidence ?? "—"} confidence</span>}
+        {isMobile && draft && <ConfidenceDots confidence={draft.confidence} />}
       </div>
 
-      {/* "Draft based on…" provenance */}
       {draft && draft.basedOn.length > 0 && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
           {draft.basedOn.slice(0, 6).map((b, i) => (
-            <span
-              key={i}
-              title={b.detail ?? undefined}
-              style={{
-                fontSize: 11,
-                padding: "3px 8px",
-                borderRadius: 999,
-                background: "var(--surface-2)",
-                border: "1px solid var(--border)",
-                color: "var(--text-3)",
-              }}
-            >
+            <span key={i} title={b.detail ?? undefined} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 999, background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-3)" }}>
               {basedOnLabel[b.kind]}: {b.label}
             </span>
           ))}
         </div>
       )}
 
-      {!draft ? (
-        <div
-          style={{
-            background: "var(--surface)",
-            border: "1px dashed var(--border)",
-            borderRadius: 10,
-            padding: "18px",
-            textAlign: "center",
-          }}
-        >
+      {loading && !draft ? (
+        <div style={{ background: "var(--surface)", border: "1px dashed var(--border)", borderRadius: 10, padding: "18px", textAlign: "center", fontSize: 13.5, color: "var(--text-3)" }}>
+          Loading…
+        </div>
+      ) : !draft ? (
+        <div style={{ background: "var(--surface)", border: "1px dashed var(--border)", borderRadius: 10, padding: "18px", textAlign: "center" }}>
           <div style={{ fontSize: 14, color: "var(--text-3)", marginBottom: 12 }}>
-            Generate a reply grounded in the knowledge base, the brand tone, and this
-            customer's Shopify orders — then review and send.
+            Generate a reply grounded in the knowledge base, the brand tone, and this customer's Shopify orders — then review and send.
           </div>
-          <button
-            onClick={() => void generate()}
-            disabled={generating}
-            style={{
-              cursor: generating ? "default" : "pointer",
-              border: "none",
-              background: "var(--accent)",
-              color: "var(--accent-fg)",
-              fontSize: 14,
-              fontWeight: 600,
-              padding: "10px 18px",
-              borderRadius: 9,
-              opacity: generating ? 0.6 : 1,
-            }}
-          >
+          <button onClick={() => void generate()} disabled={generating} style={{ cursor: generating ? "default" : "pointer", border: "none", background: "var(--accent)", color: "var(--accent-fg)", fontSize: 14, fontWeight: 600, padding: "11px 18px", borderRadius: 9, opacity: generating ? 0.6 : 1 }}>
             {generating ? "Drafting…" : "✦ Generate draft"}
           </button>
         </div>
@@ -978,36 +597,13 @@ function DraftComposer({
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          rows={isMobile ? 8 : 9}
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            padding: "12px 14px",
-            borderRadius: 10,
-            border: "1px solid var(--border)",
-            background: "var(--surface)",
-            color: "var(--text)",
-            fontSize: 14,
-            fontFamily: "var(--sans)",
-            lineHeight: 1.55,
-            resize: "vertical",
-          }}
+          rows={isMobile ? 7 : 9}
+          style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)", fontSize: 14, fontFamily: "var(--sans)", lineHeight: 1.55, resize: "vertical" }}
         />
       )}
 
-      {/* recommended (manual) action for the operator */}
       {draft?.recommendedAction && (
-        <div
-          style={{
-            marginTop: 10,
-            padding: "10px 13px",
-            borderRadius: 9,
-            fontSize: 12.5,
-            background: "var(--warn-bg)",
-            color: "var(--warn-tx)",
-            border: "1px solid var(--warn-bd)",
-          }}
-        >
+        <div style={{ marginTop: 10, padding: "10px 13px", borderRadius: 9, fontSize: 12.5, background: "var(--warn-bg)", color: "var(--warn-tx)", border: "1px solid var(--warn-bd)" }}>
           <b>Suggested action (do manually):</b> {draft.recommendedAction}
         </div>
       )}
@@ -1018,109 +614,220 @@ function DraftComposer({
           {needsReconnect && (
             <>
               {" "}
-              <a href={api.gmailConnectUrl()} style={{ color: "var(--accent)", fontWeight: 600 }}>
-                Reconnect Gmail →
-              </a>
+              <a href={api.gmailConnectUrl()} style={{ color: "var(--accent)", fontWeight: 600 }}>Reconnect Gmail →</a>
             </>
           )}
         </div>
       )}
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 14, flexWrap: "wrap" }}>
-        {draft && (
+      {/* primary action — full width on mobile */}
+      {draft && (
+        <div style={{ marginTop: 14 }}>
           <button
             onClick={() => void send()}
             disabled={sending || !canSend || !body.trim()}
             title={canSend ? undefined : "Reconnect Gmail to enable sending"}
-            style={{
-              border: "none",
-              cursor: sending || !canSend || !body.trim() ? "default" : "pointer",
-              background: "var(--accent)",
-              color: "var(--accent-fg)",
-              fontSize: 14.5,
-              fontWeight: 600,
-              padding: "11px 20px",
-              borderRadius: 9,
-              opacity: sending || !canSend || !body.trim() ? 0.5 : 1,
-            }}
+            style={{ width: isMobile ? "100%" : "auto", border: "none", cursor: sending || !canSend || !body.trim() ? "default" : "pointer", background: "var(--accent)", color: "var(--accent-fg)", fontSize: 14.5, fontWeight: 600, padding: "12px 22px", borderRadius: 9, opacity: sending || !canSend || !body.trim() ? 0.5 : 1 }}
           >
             {sending ? "Sending…" : "Approve & Send"}
           </button>
-        )}
+        </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 12, flexWrap: "wrap" }}>
         {draft && (
-          <button
-            onClick={() => void generate()}
-            disabled={generating}
-            style={{
-              border: "1px solid var(--border)",
-              cursor: generating ? "default" : "pointer",
-              background: "var(--surface)",
-              color: "var(--text-2)",
-              fontSize: 14,
-              fontWeight: 500,
-              padding: "10px 15px",
-              borderRadius: 9,
-            }}
-          >
+          <button onClick={() => void generate()} disabled={generating} style={{ border: "1px solid var(--border)", cursor: generating ? "default" : "pointer", background: "var(--surface)", color: "var(--text-2)", fontSize: 14, fontWeight: 500, padding: "10px 15px", borderRadius: 9 }}>
             {generating ? "…" : "Regenerate"}
           </button>
         )}
         {draft && (
-          <button
-            onClick={() => void dismiss()}
-            style={{
-              border: "1px solid var(--border)",
-              cursor: "pointer",
-              background: "transparent",
-              color: "var(--text-3)",
-              fontSize: 14,
-              fontWeight: 500,
-              padding: "10px 13px",
-              borderRadius: 9,
-            }}
-          >
+          <button onClick={() => void dismiss()} style={{ border: "1px solid var(--border)", cursor: "pointer", background: "transparent", color: "var(--text-3)", fontSize: 14, fontWeight: 500, padding: "10px 13px", borderRadius: 9 }}>
             Discard draft
           </button>
         )}
         {isCustomer === false ? (
-          <button
-            onClick={() => onReclassify(true)}
-            disabled={reclassifying}
-            style={{
-              marginLeft: "auto",
-              cursor: reclassifying ? "default" : "pointer",
-              border: "1px solid var(--border)",
-              background: "var(--accent-soft-bg)",
-              color: "var(--accent-soft-fg)",
-              fontSize: 14,
-              fontWeight: 600,
-              padding: "10px 15px",
-              borderRadius: 9,
-            }}
-          >
+          <button onClick={() => onReclassify(true)} disabled={reclassifying} style={{ marginLeft: isMobile ? 0 : "auto", cursor: reclassifying ? "default" : "pointer", border: "1px solid var(--border)", background: "var(--accent-soft-bg)", color: "var(--accent-soft-fg)", fontSize: 14, fontWeight: 600, padding: "10px 15px", borderRadius: 9 }}>
             ✓ Mark as customer request
           </button>
         ) : (
-          <button
-            onClick={() => onReclassify(false)}
-            disabled={reclassifying}
-            title="Move this thread to Filtered out"
-            style={{
-              marginLeft: "auto",
-              cursor: reclassifying ? "default" : "pointer",
-              border: "none",
-              background: "transparent",
-              color: "var(--text-3)",
-              fontSize: 14,
-              fontWeight: 500,
-              padding: "10px 12px",
-              borderRadius: 8,
-            }}
-          >
+          <button onClick={() => onReclassify(false)} disabled={reclassifying} title="Move this thread to Filtered out" style={{ marginLeft: isMobile ? 0 : "auto", cursor: reclassifying ? "default" : "pointer", border: "none", background: "transparent", color: "var(--text-3)", fontSize: 14, fontWeight: 500, padding: "10px 12px", borderRadius: 8 }}>
             Dismiss · mark as noise
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// Cache resolved Shopify context per thread for this session so reopening a
+// thread doesn't re-mint a token + re-query Shopify on every open.
+const shopifyCache = new Map<string, ShopifyContextDTO>();
+
+function statusColor(status: string | null): { bg: string; fg: string } {
+  const s = (status ?? "").toUpperCase();
+  if (["PAID", "FULFILLED"].includes(s)) return { bg: "var(--accent-soft-bg)", fg: "var(--accent-soft-fg)" };
+  if (["REFUNDED", "UNFULFILLED", "PARTIALLY_REFUNDED", "VOIDED"].includes(s)) return { bg: "var(--cat-exchange-bg)", fg: "var(--cat-exchange-fg)" };
+  return { bg: "var(--surface-2)", fg: "var(--text-3)" };
+}
+
+function OrderCard({ order }: { order: ShopifyOrderDTO }) {
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 11, padding: "12px 13px", marginBottom: 9 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+        <span style={{ fontWeight: 700, fontSize: 13.5, fontFamily: "var(--mono)" }}>{order.name}</span>
+        <span style={{ fontSize: 12, color: "var(--text-3)" }}>{formatTime(order.createdAt)}</span>
+        <span style={{ marginLeft: "auto", fontWeight: 600, fontSize: 13, color: "var(--text)" }}>
+          {order.total ? `${order.total} ${order.currency ?? ""}` : ""}
+        </span>
+      </div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+        {[order.financialStatus, order.fulfillmentStatus].filter((s): s is string => Boolean(s)).map((s) => {
+          const c = statusColor(s);
+          return (
+            <span key={s} style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: "0.02em", padding: "2px 8px", borderRadius: 999, background: c.bg, color: c.fg }}>
+              {s.replace(/_/g, " ")}
+            </span>
+          );
+        })}
+      </div>
+      {order.lineItems.length > 0 && (
+        <div style={{ fontSize: 12.5, color: "var(--text-2)", lineHeight: 1.5 }}>
+          {order.lineItems.map((li, i) => (
+            <div key={i} style={{ display: "flex", gap: 6 }}>
+              <span style={{ color: "var(--text-3)" }}>{li.quantity}×</span>
+              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{li.title}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {order.tracking.length > 0 && (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+          {order.tracking.map((t, i) => (
+            <div key={i} style={{ fontSize: 12, fontFamily: "var(--mono)", overflowWrap: "anywhere" }}>
+              {t.company ? `${t.company}: ` : ""}
+              {t.url ? (
+                <a href={t.url} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>{t.number ?? "track"}</a>
+              ) : (
+                <span style={{ color: "var(--text-2)" }}>{t.number}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ShopifyContextPanel({ threadId, email }: { threadId: string; email: string | null }) {
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [ctx, setCtx] = useState<ShopifyContextDTO | null>(() => shopifyCache.get(threadId) ?? null);
+  const [loading, setLoading] = useState(false);
+  const [orderQuery, setOrderQuery] = useState("");
+
+  const resolve = (force = false) => {
+    if (!force && shopifyCache.has(threadId)) {
+      setCtx(shopifyCache.get(threadId)!);
+      return;
+    }
+    setLoading(true);
+    api.threadShopify(threadId)
+      .then((c) => {
+        shopifyCache.set(threadId, c);
+        setCtx(c);
+      })
+      .catch(() => setCtx({ found: false, customer: null, orders: [], matchedBy: null }))
+      .finally(() => setLoading(false));
+  };
+
+  const findOrder = (order: string) => {
+    setLoading(true);
+    api.threadShopifyOrder(threadId, order)
+      .then((c) => {
+        shopifyCache.set(threadId, c);
+        setCtx(c);
+      })
+      .catch(() => setCtx({ found: false, customer: null, orders: [], matchedBy: null }))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    let active = true;
+    void api.shopifyStatus()
+      .then((s) => {
+        if (!active) return;
+        setConfigured(s.configured);
+        if (s.configured) resolve();
+      })
+      .catch(() => active && setConfigured(false));
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadId]);
+
+  if (configured === false) {
+    return (
+      <div style={{ background: "var(--surface)", border: "1px dashed var(--border)", borderRadius: 12, padding: "18px 16px", textAlign: "center" }}>
+        <div style={{ margin: "0 auto 8px", color: "var(--text-3)" }}><BagIcon size={18} strokeWidth={1.8} /></div>
+        <div style={{ fontSize: 13, color: "var(--text-3)" }}>Shopify isn't connected. Add the store credentials to see order context.</div>
+      </div>
+    );
+  }
+
+  const matchLabel =
+    ctx?.matchedBy === "order" ? "matched by order number"
+      : ctx?.matchedBy === "email" ? "matched by email"
+      : ctx?.matchedBy === "pinned" ? "pinned order" : null;
+  const inputStyle: React.CSSProperties = { flex: 1, minWidth: 0, height: 40, padding: "0 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)", fontSize: 13, fontFamily: "var(--mono)" };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        <input
+          value={orderQuery}
+          onChange={(e) => setOrderQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && orderQuery.trim()) findOrder(orderQuery.trim()); }}
+          placeholder="Look up order # (e.g. 21142)"
+          style={inputStyle}
+        />
+        <button onClick={() => orderQuery.trim() && findOrder(orderQuery.trim())} style={{ cursor: "pointer", fontSize: 12.5, fontWeight: 600, padding: "0 14px", height: 40, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-2)" }}>
+          Find
+        </button>
+      </div>
+
+      <button onClick={() => resolve(true)} title={email ?? undefined} style={{ cursor: "pointer", fontSize: 12, fontWeight: 600, padding: "7px 11px", borderRadius: 7, border: "1px solid var(--border)", background: "transparent", color: "var(--text-3)", marginBottom: 12, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        ↺ Auto-match by email
+      </button>
+
+      {loading && <div style={{ fontSize: 13, color: "var(--text-3)", padding: "8px 0" }}>Looking up Shopify…</div>}
+
+      {!loading && ctx && !ctx.found && (
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 11, padding: "14px", fontSize: 13, color: "var(--text-3)" }}>
+          No matching customer or order found. Try a specific order number above.
+        </div>
+      )}
+
+      {!loading && ctx?.found && (
+        <>
+          {matchLabel && <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 8 }}>{matchLabel}</div>}
+          {ctx.customer && (
+            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 11, padding: "13px 14px", marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{ctx.customer.name ?? ctx.customer.email ?? "Customer"}</div>
+              {ctx.customer.email && <div style={{ fontSize: 12, color: "var(--text-3)", fontFamily: "var(--mono)", marginBottom: 8, overflowWrap: "anywhere" }}>{ctx.customer.email}</div>}
+              <div style={{ display: "flex", gap: 16, fontSize: 12.5 }}>
+                <span style={{ color: "var(--text-3)" }}>Orders: <b style={{ color: "var(--text)" }}>{ctx.customer.ordersCount ?? "—"}</b></span>
+                {ctx.customer.totalSpent && (
+                  <span style={{ color: "var(--text-3)" }}>Spent: <b style={{ color: "var(--text)" }}>{ctx.customer.totalSpent} {ctx.customer.currency ?? ""}</b></span>
+                )}
+              </div>
+            </div>
+          )}
+          <div style={{ fontFamily: "var(--mono)", fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-3)", marginBottom: 8 }}>
+            {ctx.orders.length === 1 ? "Order" : "Recent orders"}
+          </div>
+          {ctx.orders.map((o) => <OrderCard key={o.name} order={o} />)}
+        </>
+      )}
     </div>
   );
 }

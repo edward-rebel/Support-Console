@@ -51,6 +51,7 @@ interface DraftSchemaOut {
   reply_body: string;
   confidence: ConfidenceLevel;
   recommended_action: string;
+  request_summary: string;
 }
 
 const DRAFT_SCHEMA = {
@@ -60,8 +61,12 @@ const DRAFT_SCHEMA = {
     reply_body: { type: "string" },
     confidence: { type: "string", enum: ["high", "medium", "low"] },
     recommended_action: { type: "string" },
+    request_summary: {
+      type: "string",
+      description: "1-2 sentence third-person summary of the customer's request.",
+    },
   },
-  required: ["reply_body", "confidence", "recommended_action"],
+  required: ["reply_body", "confidence", "recommended_action", "request_summary"],
 } as const;
 
 function systemPrompt(toneText: string | null): string {
@@ -101,6 +106,7 @@ export async function generateDraft(
       customerEmail: threads.customerEmail,
       categoryId: threads.categoryId,
       categorySlug: categories.slug,
+      summary: threads.summary,
     })
     .from(threads)
     .leftJoin(categories, eq(threads.categoryId, categories.id))
@@ -231,9 +237,20 @@ Write the reply now.`;
     .returning();
 
   // Move the thread into the review queue and reflect the draft's confidence.
+  // Backfill the request summary if triage hasn't produced one yet (free — the
+  // drafting model already read the whole thread).
+  const backfillSummary =
+    !t.summary && out.request_summary?.trim()
+      ? out.request_summary.trim().slice(0, 280)
+      : t.summary;
   await db
     .update(threads)
-    .set({ status: "needs_review", confidence, updatedAt: new Date() })
+    .set({
+      status: "needs_review",
+      confidence,
+      summary: backfillSummary,
+      updatedAt: new Date(),
+    })
     .where(eq(threads.id, threadId));
 
   return inserted[0]!;

@@ -1,5 +1,6 @@
 import type {
   DraftDTO,
+  InsightsDTO,
   KnowledgeBuildStatus,
   KnowledgeEntryDTO,
   KnowledgeEntryType,
@@ -7,7 +8,7 @@ import type {
   Paginated,
   SendResultDTO,
   ShopifyContextDTO,
-  SyncResultDTO,
+  SyncStatusDTO,
   ThreadDetailDTO,
   ThreadSummaryDTO,
   ToneProfileDTO,
@@ -77,11 +78,7 @@ export class SendBlockedError extends ApiError {
     this.name = "SendBlockedError";
   }
 }
-export interface SyncStatus {
-  syncing: boolean;
-  lastResult: SyncResultDTO | null;
-  lastError: string | null;
-}
+export type SyncStatus = SyncStatusDTO;
 
 export const api = {
   login: (email: string, password: string) =>
@@ -96,6 +93,7 @@ export const api = {
       status?: string;
       tab?: "customer" | "noise";
       category?: string;
+      q?: string;
       page?: number;
     } = {},
   ) => {
@@ -103,12 +101,17 @@ export const api = {
     if (params.status) qs.set("status", params.status);
     if (params.tab) qs.set("tab", params.tab);
     if (params.category) qs.set("category", params.category);
+    if (params.q) qs.set("q", params.q);
     if (params.page) qs.set("page", String(params.page));
-    const q = qs.toString();
+    const query = qs.toString();
     return request<Paginated<ThreadSummaryDTO>>(
-      `/threads${q ? `?${q}` : ""}`,
+      `/threads${query ? `?${query}` : ""}`,
     );
   },
+  getInsights: (range?: string) =>
+    request<InsightsDTO>(`/insights${range ? `?range=${range}` : ""}`),
+  attachmentUrl: (messageId: string, attachmentId: string) =>
+    `${API_URL}/messages/${messageId}/attachments/${attachmentId}`,
   threadCounts: () =>
     request<{
       customer: number;

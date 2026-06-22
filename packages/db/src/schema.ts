@@ -110,6 +110,12 @@ export const threads = pgTable(
     snippet: text("snippet"), // one-line preview for the inbox row
     status: threadStatusEnum("status").default("new").notNull(),
     confidence: text("confidence"), // high|medium|low, set when a draft exists (Phase 3)
+    // Customer sentiment from triage: positive|neutral|negative|frustrated
+    // (null until triaged; only set on customer threads, mirroring categoryId).
+    sentiment: text("sentiment"),
+    sentimentScore: integer("sentiment_score"), // 0-100 satisfaction, null if unknown
+    // 1-2 sentence AI summary of the customer's request; null until triaged.
+    summary: text("summary"),
     // The Shopify order pinned to this thread (e.g. "#21142") — set when an order
     // is resolved (manually or extracted from the email) so context survives a
     // reload without re-resolving. Read-only reference; not a write to Shopify.
@@ -145,6 +151,9 @@ export const messages = pgTable(
     // Full raw Gmail message payload — preserved permanently (spec §3.4) so
     // every later AI step can re-run without re-fetching from Gmail.
     raw: jsonb("raw"),
+    // Attachment metadata (filename/mimeType/size/attachmentId/inline) derived
+    // from the MIME tree; bytes are fetched on demand from Gmail, not stored.
+    attachments: jsonb("attachments"),
     ...timestamps,
   },
   (t) => ({

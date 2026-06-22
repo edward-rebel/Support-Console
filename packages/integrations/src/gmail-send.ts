@@ -30,13 +30,34 @@ export class GmailSendError extends Error {
   }
 }
 
-// RFC 2047 encode a header value if it contains non-ASCII characters.
+// Strip CR/LF so a header value (To/Subject/In-Reply-To/References) — all of
+// which originate from attacker-controlled inbound email — cannot inject extra
+// MIME headers (header-injection / SMTP smuggling).
+function sanitizeHeaderValue(value: string): string {
+  return value.replace(/[\r\n]+/g, " ").trim();
+}
+
+// RFC 2047 encode a header value when it contains non-ASCII; always sanitized.
 function encodeHeader(value: string): string {
+  const clean = sanitizeHeaderValue(value);
   // eslint-disable-next-line no-control-regex
-  if (/[^\x00-\x7F]/.test(value)) {
-    return `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`;
+  if (/[^\x00-\x7F]/.test(clean)) {
+    return `=?UTF-8?B?${Buffer.from(clean, "utf8").toString("base64")}?=`;
   }
-  return value;
+  return clean;
+}
+
+// Basic single-address validation. We only ever reply to one customer.
+const EMAIL_RE = /^[^\s@<>",;]+@[^\s@<>",;]+\.[^\s@<>",;]+$/;
+
+// Keep only well-formed Message-ID tokens ("<id@host>") for In-Reply-To /
+// References, dropping anything that could carry an injection.
+function cleanMessageIds(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const tokens = sanitizeHeaderValue(raw)
+    .split(/\s+/)
+    .filter((t) => /^<[^\s<>]+>$/.test(t));
+  return tokens.length ? tokens.join(" ") : null;
 }
 
 function buildMime(opts: {
@@ -48,8 +69,8 @@ function buildMime(opts: {
   body: string;
 }): string {
   const headerLines = [
-    `From: ${opts.from}`,
-    `To: ${opts.to}`,
+    `From: ${sanitizeHeaderValue(opts.from)}`,
+    `To: ${sanitizeHeaderValue(opts.to)}`,
     `Subject: ${encodeHeader(opts.subject)}`,
     opts.inReplyTo ? `In-Reply-To: ${opts.inReplyTo}` : null,
     opts.references ? `References: ${opts.references}` : null,
@@ -95,6 +116,16 @@ export async function sendReply(
   if (draft.status === "sent") {
     throw new GmailSendError("failed", "This draft has already been sent.");
   }
+  // Idempotency guard: if an audit row already exists for this draft, a send
+  // already went out (e.g. a prior attempt whose audit committed). Never resend.
+  const priorSend = await db
+    .select({ id: sends.id })
+    .from(sends)
+    .where(eq(sends.draftId, draft.id))
+    .limit(1);
+  if (priorSend[0]) {
+    throw new GmailSendError("failed", "A reply has already been sent for this draft.");
+  }
 
   const threadRows = await db
     .select({
@@ -122,7 +153,7 @@ export async function sendReply(
   const auth = await getAuthorizedClient(db, cfg.google, cfg.encryptionKey);
   if (!auth) throw new GmailSendError("not_connected", "Gmail is not connected.");
 
-  // 3) Threading headers from the latest inbound message.
+  // 3) Threading headers from the latest inbound message (sanitized).
   const lastInbound = await db
     .select({ headers: messages.headers, fromAddress: messages.fromAddress })
     .from(messages)
@@ -130,28 +161,49 @@ export async function sendReply(
     .orderBy(desc(messages.gmailInternalDate))
     .limit(1);
   const lh = (lastInbound[0]?.headers ?? {}) as Record<string, string>;
-  const inReplyTo = lh["message-id"] ?? null;
-  const references =
-    [lh["references"], lh["message-id"]].filter(Boolean).join(" ").trim() || null;
+  const inReplyTo = cleanMessageIds(lh["message-id"]);
+  const references = cleanMessageIds(
+    [lh["references"], lh["message-id"]].filter(Boolean).join(" "),
+  );
 
-  const to =
-    thread.customerEmail ?? extractEmail(lastInbound[0]?.fromAddress ?? null);
-  if (!to) {
-    throw new GmailSendError("no_recipient", "No recipient address for this thread.");
+  const rawTo = sanitizeHeaderValue(
+    thread.customerEmail ?? extractEmail(lastInbound[0]?.fromAddress ?? null) ?? "",
+  );
+  if (!rawTo || !EMAIL_RE.test(rawTo)) {
+    throw new GmailSendError("no_recipient", "No valid recipient address for this thread.");
   }
 
   const cleanSubject = (thread.subject ?? "your message").replace(/^(re|fwd):\s*/i, "");
+  const replySubject = `Re: ${cleanSubject}`;
+  const fromHeader = `Molly & Stitch <${cfg.gmailAccount}>`;
   const mime = buildMime({
-    from: `Molly & Stitch <${cfg.gmailAccount}>`,
-    to,
-    subject: `Re: ${cleanSubject}`,
+    from: fromHeader,
+    to: rawTo,
+    subject: replySubject,
     inReplyTo,
     references,
     body: params.body,
   });
   const raw = Buffer.from(mime, "utf8").toString("base64url");
 
-  // 4) Send on the original Gmail thread.
+  // 4) Atomically CLAIM the draft (pending → approved). The conditional update
+  // succeeds for exactly one caller, so concurrent approve-send requests can't
+  // both proceed. The claim is committed BEFORE the external Gmail call so we
+  // never hold a row lock across the network or roll back a delivered email.
+  const claimed = await db
+    .update(drafts)
+    .set({ status: "approved", body: params.body, updatedAt: new Date() })
+    .where(and(eq(drafts.id, draft.id), eq(drafts.status, "pending")))
+    .returning({ id: drafts.id });
+  if (claimed.length === 0) {
+    throw new GmailSendError(
+      "failed",
+      "This draft can't be sent right now (already sent or in progress).",
+    );
+  }
+
+  // 5) Send OUTSIDE any transaction. On failure, release the claim back to
+  // pending so the operator can retry; the email never went out.
   const gmail = google.gmail({ version: "v1", auth });
   let sentId: string | null = null;
   try {
@@ -161,11 +213,36 @@ export async function sendReply(
     });
     sentId = res.data.id ?? null;
   } catch (err) {
+    await db
+      .update(drafts)
+      .set({ status: "pending", updatedAt: new Date() })
+      .where(eq(drafts.id, draft.id));
     const msg = err instanceof Error ? err.message : String(err);
     throw new GmailSendError("failed", `Gmail send failed: ${msg}`);
   }
 
-  // 5) Immutable audit row + status updates.
+  // 6) The email is delivered — now record it durably. The draft stays
+  // "approved" (claimed, not pending) so a crash here can never trigger a
+  // resend; the priorSend guard above also blocks a retry once the audit lands.
+  if (sentId) {
+    await db
+      .insert(messages)
+      .values({
+        id: sentId,
+        threadId: thread.id,
+        direction: "outbound",
+        fromAddress: fromHeader,
+        toAddress: rawTo,
+        subject: replySubject,
+        bodyText: params.body,
+        bodyHtml: null,
+        headers: inReplyTo ? { "in-reply-to": inReplyTo } : {},
+        gmailInternalDate: new Date(),
+        raw: null,
+      })
+      .onConflictDoNothing({ target: messages.id });
+  }
+
   const sendRows = await db
     .insert(sends)
     .values({
@@ -179,7 +256,7 @@ export async function sendReply(
 
   await db
     .update(drafts)
-    .set({ status: "sent", body: params.body, updatedAt: new Date() })
+    .set({ status: "sent", updatedAt: new Date() })
     .where(eq(drafts.id, draft.id));
   await db
     .update(threads)
@@ -187,4 +264,25 @@ export async function sendReply(
     .where(eq(threads.id, thread.id));
 
   return { send: sendRows[0]!, sentGmailMessageId: sentId };
+}
+
+// Fetch the raw bytes of an attachment via the read-only Gmail client. Kept here
+// alongside the other Gmail client usage. READ-ONLY (gmail.readonly suffices).
+export async function fetchAttachmentBytes(
+  db: Db,
+  cfg: IntegrationsConfig,
+  messageId: string,
+  attachmentId: string,
+): Promise<Buffer | null> {
+  const auth = await getAuthorizedClient(db, cfg.google, cfg.encryptionKey);
+  if (!auth) return null;
+  const gmail = google.gmail({ version: "v1", auth });
+  const res = await gmail.users.messages.attachments.get({
+    userId: "me",
+    messageId,
+    id: attachmentId,
+  });
+  const data = res.data.data;
+  if (!data) return null;
+  return Buffer.from(data, "base64url");
 }

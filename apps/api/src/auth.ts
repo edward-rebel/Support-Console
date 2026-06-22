@@ -14,7 +14,7 @@ export async function requireAuth(
   reply: FastifyReply,
 ): Promise<void> {
   if (!request.session.userId) {
-    await reply.code(401).send({ error: "Not authenticated" });
+    return reply.code(401).send({ error: "Not authenticated" });
   }
 }
 

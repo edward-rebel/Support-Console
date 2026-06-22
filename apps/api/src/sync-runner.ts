@@ -5,8 +5,8 @@ import {
   runTriage,
   type IntegrationsConfig,
 } from "@ms/integrations";
-import type { Db } from "@ms/db";
-import type { SyncResultDTO } from "@ms/shared";
+import { syncState, type Db } from "@ms/db";
+import type { SyncResultDTO, SyncStatusDTO } from "@ms/shared";
 
 // Single-flight sync runner. Ingestion is idempotent and never sends email, so
 // both the manual `POST /sync` trigger and the in-process scheduler share this
@@ -26,6 +26,24 @@ export class SyncRunner {
       syncing: this.running,
       lastResult: this.lastResult,
       lastError: this.lastError,
+    };
+  }
+
+  // Full status including the persisted last-sync timestamp (survives restarts).
+  async statusWithPersisted(): Promise<SyncStatusDTO> {
+    const rows = await this.db
+      .select({
+        inc: syncState.lastIncrementalSyncAt,
+        full: syncState.lastFullSyncAt,
+      })
+      .from(syncState)
+      .limit(1);
+    const last = rows[0]?.inc ?? rows[0]?.full ?? null;
+    return {
+      syncing: this.running,
+      lastResult: this.lastResult,
+      lastError: this.lastError,
+      lastSyncAt: last ? last.toISOString() : null,
     };
   }
 

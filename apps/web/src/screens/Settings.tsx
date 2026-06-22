@@ -2,15 +2,19 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, type GmailStatus, type SenderRuleDTO } from "../api";
 import { useAuth } from "../auth";
+import { useIsMobile } from "../useIsMobile";
 import { MailIcon } from "../icons";
 
 export function Settings() {
   const { logout } = useAuth();
+  const isMobile = useIsMobile();
   const [params] = useSearchParams();
   const [gmail, setGmail] = useState<GmailStatus | null>(null);
+  const [shopify, setShopify] = useState<{ configured: boolean; store: string | null } | null>(null);
 
   useEffect(() => {
     void api.gmailStatus().then(setGmail).catch(() => setGmail(null));
+    void api.shopifyStatus().then(setShopify).catch(() => setShopify(null));
   }, []);
 
   const banner =
@@ -26,7 +30,7 @@ export function Settings() {
           : null;
 
   return (
-    <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: "24px 32px 40px" }}>
+    <div style={{ flex: 1, minHeight: 0, overflow: "auto", padding: isMobile ? "16px 14px 40px" : "24px 32px 40px" }}>
       <div style={{ maxWidth: 860, margin: "0 auto" }}>
         <div style={{ marginBottom: 22 }}>
           <h1
@@ -163,7 +167,6 @@ export function Settings() {
               gap: 13,
               padding: "12px 0",
               borderTop: "1px solid var(--border-2)",
-              opacity: 0.7,
             }}
           >
             <div
@@ -177,14 +180,17 @@ export function Settings() {
                 alignItems: "center",
                 justifyContent: "center",
                 fontWeight: 700,
+                flex: "none",
               }}
             >
               S
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>Shopify</div>
-              <div style={{ fontSize: 12.5, color: "var(--text-3)" }}>
-                Read-only · arrives in Phase 4
+              <div style={{ fontSize: 12.5, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {shopify?.configured
+                  ? `Read-only · ${shopify.store ?? "connected"}`
+                  : "Read-only · not configured"}
               </div>
             </div>
             <span
@@ -193,11 +199,12 @@ export function Settings() {
                 fontWeight: 600,
                 padding: "4px 11px",
                 borderRadius: 999,
-                background: "var(--st-dismissed-bg)",
-                color: "var(--st-dismissed-fg)",
+                flex: "none",
+                background: shopify?.configured ? "var(--accent-soft-bg)" : "var(--st-dismissed-bg)",
+                color: shopify?.configured ? "var(--accent-soft-fg)" : "var(--st-dismissed-fg)",
               }}
             >
-              Not connected
+              {shopify?.configured ? "Connected" : "Not connected"}
             </span>
           </div>
         </div>
@@ -225,9 +232,11 @@ export function Settings() {
 }
 
 function SenderRulesCard() {
+  const isMobile = useIsMobile();
   const [rules, setRules] = useState<SenderRuleDTO[]>([]);
   const [pattern, setPattern] = useState("");
   const [busy, setBusy] = useState(false);
+  const [ruleError, setRuleError] = useState<string | null>(null);
 
   const load = () =>
     api
@@ -238,14 +247,29 @@ function SenderRulesCard() {
     void load();
   }, []);
 
+  // Accept a bare domain ("getredo.com"), a wildcard ("*@getredo.com"), or a
+  // full address — reject obvious typos like "gmail" (no dot).
+  const isValidPattern = (p: string): boolean => {
+    const v = p.trim().toLowerCase();
+    if (v.includes("@")) return /^(\*|[^\s@]+)@[^\s@]+\.[^\s@]+$/.test(v);
+    return /^[^\s@]+\.[^\s@]+$/.test(v);
+  };
+
   const add = async (rule: "allow" | "block") => {
     const p = pattern.trim();
     if (!p || busy) return;
+    if (!isValidPattern(p)) {
+      setRuleError("Enter a domain (getredo.com) or a full email address.");
+      return;
+    }
+    setRuleError(null);
     setBusy(true);
     try {
       await api.addSenderRule(p, rule);
       setPattern("");
       await load();
+    } catch {
+      setRuleError("Couldn't save that rule. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -317,10 +341,16 @@ function SenderRulesCard() {
         </button>
       </div>
 
+      {ruleError && (
+        <div style={{ fontSize: 12.5, color: "var(--warn-tx)", marginBottom: 14 }}>
+          {ruleError}
+        </div>
+      )}
+
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
           gap: 18,
         }}
       >

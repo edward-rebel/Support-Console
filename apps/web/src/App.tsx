@@ -7,7 +7,8 @@ import { Inbox } from "./screens/Inbox";
 import { Review } from "./screens/Review";
 import { Settings } from "./screens/Settings";
 import { Knowledge } from "./screens/Knowledge";
-import { Placeholder } from "./screens/Placeholder";
+import { Insights } from "./screens/Insights";
+import { Approvals } from "./screens/Approvals";
 
 export function App() {
   const { user, loading } = useAuth();
@@ -44,27 +45,9 @@ export function App() {
           <Route path="/inbox" element={<Inbox />} />
           <Route path="/review/:id" element={<Review />} />
           <Route path="/settings" element={<Settings />} />
-          <Route
-            path="/approvals"
-            element={
-              <Placeholder
-                title="Approvals"
-                phase="Phase 3"
-                blurb="Focused review — one at a time"
-              />
-            }
-          />
+          <Route path="/approvals" element={<Approvals />} />
           <Route path="/knowledge" element={<Knowledge />} />
-          <Route
-            path="/insights"
-            element={
-              <Placeholder
-                title="Insights"
-                phase="Phase 5"
-                blurb="Is the AI good enough to trust more?"
-              />
-            }
-          />
+          <Route path="/insights" element={<Insights />} />
           <Route path="*" element={<Navigate to="/inbox" replace />} />
         </Route>
       </Routes>

@@ -1,4 +1,34 @@
-import type { ConfidenceLevel, ThreadStatus } from "@ms/shared";
+import type { ConfidenceLevel, Sentiment, ThreadStatus } from "@ms/shared";
+
+// Sentiment pill tokens (reuse existing palette). Neutral is intentionally muted
+// so the inbox only highlights notable sentiment.
+const SENTIMENT_TOKENS: Record<Sentiment, { bg: string; fg: string }> = {
+  positive: { bg: "var(--accent-soft-bg)", fg: "var(--accent-soft-fg)" },
+  neutral: { bg: "var(--surface-2)", fg: "var(--text-3)" },
+  negative: { bg: "var(--cat-exchange-bg)", fg: "var(--cat-exchange-fg)" },
+  frustrated: { bg: "var(--warn-bg)", fg: "var(--warn-tx)" },
+};
+const SENTIMENT_LABEL: Record<Sentiment, string> = {
+  positive: "Positive",
+  neutral: "Neutral",
+  negative: "Unhappy",
+  frustrated: "Frustrated",
+};
+const SENTIMENT_EMOJI: Record<Sentiment, string> = {
+  positive: "🙂",
+  neutral: "😐",
+  negative: "🙁",
+  frustrated: "😠",
+};
+export function sentimentTokens(s: Sentiment) {
+  return SENTIMENT_TOKENS[s];
+}
+export function sentimentLabel(s: Sentiment): string {
+  return SENTIMENT_LABEL[s];
+}
+export function sentimentEmoji(s: Sentiment): string {
+  return SENTIMENT_EMOJI[s];
+}
 
 // Map a category slug to its design token pair. Falls back to "other".
 const CATEGORY_TOKENS: Record<string, { bg: string; fg: string }> = {
@@ -30,10 +60,10 @@ const STATUS_TOKENS: Record<ThreadStatus, { bg: string; fg: string }> = {
 };
 
 export function statusLabel(status: ThreadStatus): string {
-  return STATUS_LABELS[status];
+  return STATUS_LABELS[status] ?? status;
 }
 export function statusTokens(status: ThreadStatus) {
-  return STATUS_TOKENS[status];
+  return STATUS_TOKENS[status] ?? STATUS_TOKENS.new;
 }
 export function statusPulses(status: ThreadStatus): boolean {
   return status === "drafting";

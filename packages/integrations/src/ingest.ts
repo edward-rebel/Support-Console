@@ -74,6 +74,7 @@ async function upsertMessage(
       headers: parsed.headers,
       gmailInternalDate: parsed.internalDate,
       raw: raw as unknown,
+      attachments: parsed.attachments.length ? parsed.attachments : null,
     })
     .onConflictDoNothing({ target: messages.id })
     .returning({ id: messages.id });
@@ -136,43 +137,48 @@ async function upsertThread(
   return isInbound;
 }
 
-async function fetchFull(
-  gmail: gmail_v1.Gmail,
-  id: string,
-): Promise<gmail_v1.Schema$Message | null> {
-  const res = await gmail.users.messages.get({
-    userId: "me",
-    id,
-    format: "full",
-  });
-  return res.data ?? null;
-}
-
-// Ingest a set of message ids: fetch full, parse, upsert thread+message.
-async function ingestMessageIds(
+// Ingest entire threads (not just discovered message ids): for each thread we
+// fetch threads.get(full) and upsert EVERY message in it, so a thread is never
+// partially ingested even if only one of its messages surfaced in list/history.
+// Idempotent — re-walking a thread upserts on conflict and never duplicates.
+async function ingestThreadIds(
   db: Db,
   gmail: gmail_v1.Gmail,
-  ids: string[],
+  threadIds: string[],
   gmailAccount: string,
 ): Promise<{ threadsUpserted: number; messagesUpserted: number }> {
-  const seenThreads = new Set<string>();
   let messagesUpserted = 0;
+  let threadsUpserted = 0;
 
-  const raws = await pooledMap(ids, FETCH_CONCURRENCY, (id) =>
-    fetchFull(gmail, id),
+  const threadsData = await pooledMap(threadIds, FETCH_CONCURRENCY, (id) =>
+    fetchThread(gmail, id),
   );
 
-  for (const raw of raws) {
-    if (!raw) continue;
-    const parsed = parseGmailMessage(raw);
-    if (!parsed) continue;
-    await upsertThread(db, parsed, gmailAccount);
-    seenThreads.add(parsed.threadId);
-    const isNew = await upsertMessage(db, parsed, raw, gmailAccount);
-    if (isNew) messagesUpserted++;
+  for (const t of threadsData) {
+    if (!t?.messages?.length) continue;
+    let threadHadNew = false;
+    for (const raw of t.messages) {
+      const parsed = parseGmailMessage(raw);
+      if (!parsed) continue;
+      await upsertThread(db, parsed, gmailAccount);
+      const isNew = await upsertMessage(db, parsed, raw, gmailAccount);
+      if (isNew) {
+        messagesUpserted++;
+        threadHadNew = true;
+      }
+    }
+    if (threadHadNew) threadsUpserted++;
   }
 
-  return { threadsUpserted: seenThreads.size, messagesUpserted };
+  return { threadsUpserted, messagesUpserted };
+}
+
+async function fetchThread(
+  gmail: gmail_v1.Gmail,
+  id: string,
+): Promise<gmail_v1.Schema$Thread | null> {
+  const res = await gmail.users.threads.get({ userId: "me", id, format: "full" });
+  return res.data ?? null;
 }
 
 // One-time backfill of the last N months via messages.list (after: query).
@@ -188,9 +194,9 @@ async function runBackfill(
   const query = `after:${afterSeconds}`;
 
   let pageToken: string | undefined;
-  let totalThreads = 0;
-  let totalMessages = 0;
   let latestHistoryId: string | null = null;
+  // Collect distinct thread ids across all pages, then walk each thread once.
+  const threadIds = new Set<string>();
 
   do {
     const list = await gmail.users.messages.list({
@@ -199,16 +205,15 @@ async function runBackfill(
       maxResults: PAGE_SIZE,
       pageToken,
     });
-    const ids = (list.data.messages ?? [])
-      .map((m) => m.id)
-      .filter((id): id is string => Boolean(id));
-    if (ids.length > 0) {
-      const r = await ingestMessageIds(db, gmail, ids, cfg.gmailAccount);
-      totalThreads += r.threadsUpserted;
-      totalMessages += r.messagesUpserted;
+    for (const m of list.data.messages ?? []) {
+      if (m.threadId) threadIds.add(m.threadId);
     }
     pageToken = list.data.nextPageToken ?? undefined;
   } while (pageToken);
+
+  const r = await ingestThreadIds(db, gmail, [...threadIds], cfg.gmailAccount);
+  const totalThreads = r.threadsUpserted;
+  const totalMessages = r.messagesUpserted;
 
   // Capture the mailbox's current historyId so incremental sync can resume.
   const profile = await gmail.users.getProfile({ userId: "me" });
@@ -244,7 +249,8 @@ async function runIncremental(
   startedAt: Date,
 ): Promise<SyncResultDTO> {
   let pageToken: string | undefined;
-  const newIds = new Set<string>();
+  // Collect the threads touched by new messages and walk each fully.
+  const threadIds = new Set<string>();
   let latestHistoryId = startHistoryId;
 
   try {
@@ -258,8 +264,8 @@ async function runIncremental(
       });
       for (const h of res.data.history ?? []) {
         for (const added of h.messagesAdded ?? []) {
-          const id = added.message?.id;
-          if (id) newIds.add(id);
+          const tid = added.message?.threadId;
+          if (tid) threadIds.add(tid);
         }
       }
       if (res.data.historyId) latestHistoryId = res.data.historyId;
@@ -278,13 +284,8 @@ async function runIncremental(
 
   let totalThreads = 0;
   let totalMessages = 0;
-  if (newIds.size > 0) {
-    const r = await ingestMessageIds(
-      db,
-      gmail,
-      [...newIds],
-      cfg.gmailAccount,
-    );
+  if (threadIds.size > 0) {
+    const r = await ingestThreadIds(db, gmail, [...threadIds], cfg.gmailAccount);
     totalThreads = r.threadsUpserted;
     totalMessages = r.messagesUpserted;
   }

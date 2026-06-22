@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
+import { SENTIMENTS, type Sentiment } from "@ms/shared";
 import type { IntegrationsConfig, AiProvider } from "./config";
 
 // ── Centralized model + prompt config (spec §11) ─────────────────────────────
@@ -29,7 +30,7 @@ export const MODELS = {
 
 // Bump when the triage prompt changes so we can tell which version classified a
 // thread (mirrors `prompt_version` on drafts).
-export const TRIAGE_PROMPT_VERSION = "triage-v1";
+export const TRIAGE_PROMPT_VERSION = "triage-v2";
 
 // Bump when the drafting prompt changes — stored on each draft as prompt_version.
 export const DRAFT_PROMPT_VERSION = "draft-v1";
@@ -54,6 +55,9 @@ export interface TriageClassification {
   isCustomer: boolean;
   categorySlug: string;
   confidence: "high" | "medium" | "low";
+  sentiment: Sentiment;
+  sentimentScore: number | null; // 0-100 satisfaction; null when unknown
+  requestSummary: string | null; // 1-2 sentence summary of the ask
   provider: AiProvider;
   modelId: string;
 }
@@ -70,6 +74,9 @@ function normalizeClassification(
     isCustomer?: unknown;
     category?: unknown;
     confidence?: unknown;
+    sentiment?: unknown;
+    sentiment_score?: unknown;
+    request_summary?: unknown;
   },
   categorySlugs: string[],
 ): Omit<TriageClassification, "provider" | "modelId"> {
@@ -83,10 +90,23 @@ function normalizeClassification(
     raw.confidence === "low"
       ? raw.confidence
       : "medium";
+  const sentiment: Sentiment = SENTIMENTS.includes(raw.sentiment as Sentiment)
+    ? (raw.sentiment as Sentiment)
+    : "neutral";
+  let sentimentScore: number | null = null;
+  const sc = typeof raw.sentiment_score === "number" ? raw.sentiment_score : NaN;
+  if (Number.isFinite(sc)) sentimentScore = Math.max(0, Math.min(100, Math.round(sc)));
+  const summary =
+    typeof raw.request_summary === "string" && raw.request_summary.trim()
+      ? raw.request_summary.trim().slice(0, 280)
+      : null;
   return {
     isCustomer: Boolean(raw.is_customer ?? raw.isCustomer),
     categorySlug: category,
     confidence,
+    sentiment,
+    sentimentScore,
+    requestSummary: summary,
   };
 }
 
@@ -97,7 +117,7 @@ async function classifyWithAnthropic(
   const client = makeAnthropic(apiKey);
   const res = await client.messages.create({
     model: MODELS.triage.anthropic,
-    max_tokens: 256,
+    max_tokens: 768,
     system: input.systemPrompt,
     tools: [
       {
@@ -109,8 +129,27 @@ async function classifyWithAnthropic(
             is_customer: { type: "boolean" },
             category: { type: "string", enum: input.categorySlugs },
             confidence: { type: "string", enum: ["high", "medium", "low"] },
+            sentiment: {
+              type: "string",
+              enum: ["positive", "neutral", "negative", "frustrated"],
+            },
+            sentiment_score: {
+              type: ["integer", "null"],
+              description: "0 (very dissatisfied) to 100 (very satisfied), or null.",
+            },
+            request_summary: {
+              type: "string",
+              description:
+                "1-2 sentence third-person summary of the customer's request; empty if not a customer.",
+            },
           },
-          required: ["is_customer", "category", "confidence"],
+          required: [
+            "is_customer",
+            "category",
+            "confidence",
+            "sentiment",
+            "request_summary",
+          ],
         },
       },
     ],
@@ -140,7 +179,9 @@ async function classifyWithOpenAI(
   const res = await client.responses.create({
     model: MODELS.triage.openai,
     reasoning: { effort: "low" },
-    max_output_tokens: 256,
+    // Reasoning tokens bill against this budget; leave room so the JSON (now
+    // including a summary) isn't truncated, which would empty output_text.
+    max_output_tokens: 2000,
     input: [
       { role: "system", content: input.systemPrompt },
       { role: "user", content: userContent(input) },
@@ -157,8 +198,28 @@ async function classifyWithOpenAI(
             is_customer: { type: "boolean" },
             category: { type: "string", enum: input.categorySlugs },
             confidence: { type: "string", enum: ["high", "medium", "low"] },
+            sentiment: {
+              type: "string",
+              enum: ["positive", "neutral", "negative", "frustrated"],
+            },
+            sentiment_score: {
+              type: ["integer", "null"],
+              description: "0 (very dissatisfied) to 100 (very satisfied), or null.",
+            },
+            request_summary: {
+              type: "string",
+              description:
+                "1-2 sentence third-person summary of the request; empty if not a customer.",
+            },
           },
-          required: ["is_customer", "category", "confidence"],
+          required: [
+            "is_customer",
+            "category",
+            "confidence",
+            "sentiment",
+            "sentiment_score",
+            "request_summary",
+          ],
         },
       },
     },

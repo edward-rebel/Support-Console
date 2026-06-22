@@ -1,17 +1,23 @@
 import type { FastifyInstance } from "fastify";
-import { and, asc, desc, eq, isNull, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull, or, type SQL, sql } from "drizzle-orm";
 import { categories, messages, threads } from "@ms/db";
 import type {
+  AttachmentDTO,
   CategoryDTO,
   ConfidenceLevel,
   MessageDTO,
   Paginated,
+  Sentiment,
   ThreadDetailDTO,
   ThreadSummaryDTO,
   ThreadStatus,
 } from "@ms/shared";
-import { THREAD_STATUSES } from "@ms/shared";
+import { SENTIMENTS, THREAD_STATUSES } from "@ms/shared";
 import { requireAuth } from "../auth";
+
+function asSentiment(value: string | null): Sentiment | null {
+  return SENTIMENTS.includes(value as Sentiment) ? (value as Sentiment) : null;
+}
 
 function toCategoryDTO(
   row: {
@@ -40,6 +46,7 @@ export function registerThreadRoutes(app: FastifyInstance): void {
       status?: string;
       tab?: string;
       category?: string;
+      q?: string;
       page?: string;
       pageSize?: string;
     };
@@ -66,6 +73,18 @@ export function registerThreadRoutes(app: FastifyInstance): void {
     if (request.query.category) {
       conds.push(eq(categories.slug, request.query.category));
     }
+    // Free-text search across subject + customer name/email.
+    const q = request.query.q?.trim();
+    if (q) {
+      const like = `%${q}%`;
+      conds.push(
+        or(
+          ilike(threads.subject, like),
+          ilike(threads.customerName, like),
+          ilike(threads.customerEmail, like),
+        )!,
+      );
+    }
     const where = conds.length ? and(...conds) : undefined;
 
     const countRows = await db
@@ -84,6 +103,7 @@ export function registerThreadRoutes(app: FastifyInstance): void {
         isCustomer: threads.isCustomer,
         status: threads.status,
         confidence: threads.confidence,
+        sentiment: threads.sentiment,
         snippet: threads.snippet,
         lastMessageAt: threads.lastMessageAt,
         catId: categories.id,
@@ -94,7 +114,9 @@ export function registerThreadRoutes(app: FastifyInstance): void {
       .from(threads)
       .leftJoin(categories, eq(threads.categoryId, categories.id))
       .where(where ?? sql`true`)
-      .orderBy(desc(threads.lastMessageAt))
+      // Unique tiebreaker so offset-based "Load more" can't duplicate/skip rows
+      // when lastMessageAt is null or shared across threads.
+      .orderBy(sql`${threads.lastMessageAt} desc nulls last`, desc(threads.id))
       .limit(pageSize)
       .offset((page - 1) * pageSize);
 
@@ -112,6 +134,7 @@ export function registerThreadRoutes(app: FastifyInstance): void {
       }),
       status: r.status as ThreadStatus,
       confidence: asConfidence(r.confidence),
+      sentiment: asSentiment(r.sentiment),
       // Phase 0 has no read-tracking; treat a brand-new thread as unread.
       unread: r.status === "new",
       snippet: r.snippet,
@@ -165,6 +188,8 @@ export function registerThreadRoutes(app: FastifyInstance): void {
           isCustomer: threads.isCustomer,
           status: threads.status,
           confidence: threads.confidence,
+          sentiment: threads.sentiment,
+          summary: threads.summary,
           snippet: threads.snippet,
           lastMessageAt: threads.lastMessageAt,
           catId: categories.id,
@@ -179,11 +204,27 @@ export function registerThreadRoutes(app: FastifyInstance): void {
       const t = rows[0];
       if (!t) return reply.code(404).send({ error: "Thread not found" });
 
+      // Explicit columns (skip the heavy raw jsonb), and a deterministic order:
+      // null-dated or same-dated messages fall back to insert time, then id.
       const msgRows = await db
-        .select()
+        .select({
+          id: messages.id,
+          threadId: messages.threadId,
+          direction: messages.direction,
+          fromAddress: messages.fromAddress,
+          toAddress: messages.toAddress,
+          subject: messages.subject,
+          bodyText: messages.bodyText,
+          bodyHtml: messages.bodyHtml,
+          gmailInternalDate: messages.gmailInternalDate,
+          attachments: messages.attachments,
+        })
         .from(messages)
         .where(eq(messages.threadId, id))
-        .orderBy(asc(messages.gmailInternalDate));
+        .orderBy(
+          asc(sql`coalesce(${messages.gmailInternalDate}, ${messages.createdAt})`),
+          asc(messages.id),
+        );
 
       const msgs: MessageDTO[] = msgRows.map((m) => ({
         id: m.id,
@@ -197,6 +238,12 @@ export function registerThreadRoutes(app: FastifyInstance): void {
         gmailInternalDate: m.gmailInternalDate
           ? m.gmailInternalDate.toISOString()
           : null,
+        attachments: Array.isArray(m.attachments)
+          ? (m.attachments as Omit<AttachmentDTO, "messageId">[]).map((a) => ({
+              ...a,
+              messageId: m.id,
+            }))
+          : [],
       }));
 
       const detail: ThreadDetailDTO = {
@@ -213,6 +260,8 @@ export function registerThreadRoutes(app: FastifyInstance): void {
         }),
         status: t.status as ThreadStatus,
         confidence: asConfidence(t.confidence),
+        sentiment: asSentiment(t.sentiment),
+        summary: t.summary,
         unread: t.status === "new",
         snippet: t.snippet,
         lastMessageAt: t.lastMessageAt ? t.lastMessageAt.toISOString() : null,

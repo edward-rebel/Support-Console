@@ -45,12 +45,14 @@ export function Login() {
         alignItems: "center",
         justifyContent: "center",
         background: "var(--bg)",
+        padding: "0 16px",
       }}
     >
       <form
         onSubmit={onSubmit}
         style={{
-          width: 360,
+          width: "100%",
+          maxWidth: 360,
           background: "var(--surface)",
           border: "1px solid var(--border)",
           borderRadius: 16,

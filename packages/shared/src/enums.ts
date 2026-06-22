@@ -35,6 +35,12 @@ export type ConnectionProvider = (typeof CONNECTION_PROVIDERS)[number];
 export const KNOWLEDGE_ENTRY_TYPES = ["canonical", "example", "policy"] as const;
 export type KnowledgeEntryType = (typeof KNOWLEDGE_ENTRY_TYPES)[number];
 
+// Customer satisfaction signal, produced by the triage pass alongside the
+// category. positive = happy/thankful; neutral = routine; negative = unhappy/
+// complaint; frustrated = angry / repeated contact / escalation language.
+export const SENTIMENTS = ["positive", "neutral", "negative", "frustrated"] as const;
+export type Sentiment = (typeof SENTIMENTS)[number];
+
 // Dimension of the stored knowledge embeddings. Must match the embeddings
 // provider's output (OpenAI text-embedding-3-small = 1536) AND the pgvector
 // column width in @ms/db. Change all three together (provider, this constant,

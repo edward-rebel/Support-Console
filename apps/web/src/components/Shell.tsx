@@ -1,9 +1,22 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useTheme } from "../theme";
 import { useAuth } from "../auth";
 import { useSync } from "../sync";
 import { useIsMobile } from "../useIsMobile";
+import { SearchOverlay } from "./SearchOverlay";
+
+// "Synced 3m ago" style relative label.
+function relativeTime(iso: string | null, now: number): string {
+  if (!iso) return "Never synced";
+  const diff = Math.max(0, now - new Date(iso).getTime());
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "Synced just now";
+  if (m < 60) return `Synced ${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `Synced ${h}h ago`;
+  return `Synced ${Math.floor(h / 24)}d ago`;
+}
 import {
   BarChartIcon,
   BookIcon,
@@ -36,10 +49,29 @@ export function Shell({
 }) {
   const { theme, toggle } = useTheme();
   const { user } = useAuth();
-  const { syncing, triggerSync } = useSync();
+  const { syncing, triggerSync, lastSyncAt } = useSync();
   const location = useLocation();
   const isMobile = useIsMobile();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  // Tick so the "Synced Xm ago" label stays fresh, and ⌘K opens search.
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 30_000);
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.clearInterval(t);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+  const syncedLabel = relativeTime(lastSyncAt, now);
 
   const navItems: NavItem[] = [
     { to: "/inbox", label: "Inbox", icon: <InboxIcon size={18} />, count: needsReviewCount },
@@ -391,10 +423,13 @@ export function Shell({
               </div>
             </>
           ) : (
-            <div
+            <button
+              onClick={() => setSearchOpen(true)}
               style={{
                 flex: 1,
                 maxWidth: 440,
+                cursor: "pointer",
+                textAlign: "left",
                 display: "flex",
                 alignItems: "center",
                 gap: 9,
@@ -407,7 +442,7 @@ export function Shell({
             >
               <SearchIcon size={16} style={{ color: "var(--text-3)" }} />
               <span style={{ fontSize: 13.5, color: "var(--text-3)" }}>
-                Search threads, customers, orders…
+                Search threads, customers…
               </span>
               <span
                 style={{
@@ -422,7 +457,7 @@ export function Shell({
               >
                 ⌘K
               </span>
-            </div>
+            </button>
           )}
 
           <div
@@ -433,10 +468,39 @@ export function Shell({
               gap: isMobile ? 8 : 10,
             }}
           >
+            {isMobile && (
+              <button
+                onClick={() => setSearchOpen(true)}
+                aria-label="Search"
+                style={{
+                  cursor: "pointer",
+                  width: 40,
+                  height: 40,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 9,
+                  border: "1px solid var(--border)",
+                  background: "var(--surface)",
+                  color: "var(--text-2)",
+                }}
+              >
+                <SearchIcon size={16} />
+              </button>
+            )}
+            {!isMobile && (
+              <span
+                style={{ fontSize: 11.5, color: "var(--text-3)", whiteSpace: "nowrap" }}
+                title={lastSyncAt ? new Date(lastSyncAt).toLocaleString() : undefined}
+              >
+                {syncing ? "Syncing…" : syncedLabel}
+              </span>
+            )}
             <button
               onClick={() => void triggerSync()}
               disabled={syncing}
               aria-label="Sync"
+              title={isMobile ? syncedLabel : undefined}
               style={{
                 cursor: syncing ? "default" : "pointer",
                 display: "flex",
@@ -538,6 +602,8 @@ export function Shell({
           {children}
         </div>
       </div>
+
+      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }

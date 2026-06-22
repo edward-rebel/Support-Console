@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, notInArray } from "drizzle-orm";
 import { drafts, type Draft } from "@ms/db";
 import { generateDraft, sendReply, GmailSendError } from "@ms/integrations";
 import type {
@@ -42,7 +42,7 @@ export function registerDraftRoutes(app: FastifyInstance): void {
         .where(
           and(
             eq(drafts.threadId, request.params.id),
-            ne(drafts.status, "superseded"),
+            notInArray(drafts.status, ["superseded", "dismissed"]),
           ),
         )
         .orderBy(desc(drafts.createdAt))
@@ -62,8 +62,28 @@ export function registerDraftRoutes(app: FastifyInstance): void {
         return reply.send(toDraftDTO(d));
       } catch (err) {
         app.log.error({ err }, "Draft generation failed");
-        const msg = err instanceof Error ? err.message : "Draft generation failed";
-        return reply.code(400).send({ error: msg });
+        const raw = err instanceof Error ? err.message : "";
+        // Map known failures to stable, user-facing messages; keep the raw text
+        // in the logs only. `retryable` lets the UI offer a Retry button.
+        if (/no .*provider|not configured/i.test(raw)) {
+          return reply.code(400).send({
+            error: "No AI provider is configured. Add an API key in settings.",
+            reason: "not_configured",
+            retryable: false,
+          });
+        }
+        if (/overload|rate.?limit|429|529|timeout|ETIMEDOUT|busy/i.test(raw)) {
+          return reply.code(503).send({
+            error: "The AI is busy right now. Try again in a moment.",
+            reason: "busy",
+            retryable: true,
+          });
+        }
+        return reply.code(500).send({
+          error: "Couldn't generate a draft. Please try again.",
+          reason: "failed",
+          retryable: true,
+        });
       }
     },
   );
