@@ -2,7 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { categories, messages, senderRules, threads, type Db } from "@ms/db";
 import { CATEGORIES, type SenderRuleKind } from "@ms/shared";
 import type { IntegrationsConfig } from "./config";
-import { makeAnthropic, MODELS } from "./ai";
+import { classifySupportEmail, hasTriageProvider } from "./ai";
 
 const CLASSIFY_CONCURRENCY = 6;
 const BODY_LIMIT = 2000;
@@ -85,63 +85,6 @@ Decide two things about an email:
 
 Always call the classify_support_email tool. Be decisive; use "other" when unsure of the category.`;
 
-interface ClassifyInput {
-  fromEmail: string | null;
-  subject: string | null;
-  body: string;
-}
-
-async function classify(
-  client: ReturnType<typeof makeAnthropic>,
-  input: ClassifyInput,
-): Promise<{ isCustomer: boolean; categorySlug: string; confidence: string }> {
-  const res = await client.messages.create({
-    model: MODELS.triage,
-    max_tokens: 256,
-    system: SYSTEM_PROMPT,
-    tools: [
-      {
-        name: "classify_support_email",
-        description: "Record the triage classification for this email.",
-        input_schema: {
-          type: "object",
-          properties: {
-            is_customer: { type: "boolean" },
-            category: { type: "string", enum: CATEGORY_SLUGS },
-            confidence: { type: "string", enum: ["high", "medium", "low"] },
-          },
-          required: ["is_customer", "category", "confidence"],
-        },
-      },
-    ],
-    tool_choice: { type: "tool", name: "classify_support_email" },
-    messages: [
-      {
-        role: "user",
-        content: `From: ${input.fromEmail ?? "(unknown)"}\nSubject: ${input.subject ?? "(none)"}\n\n${input.body || "(no body)"}`,
-      },
-    ],
-  });
-
-  const block = res.content.find((b) => b.type === "tool_use");
-  if (!block || block.type !== "tool_use") {
-    throw new Error("Triage model did not return a classification");
-  }
-  const data = block.input as {
-    is_customer?: boolean;
-    category?: string;
-    confidence?: string;
-  };
-  const categorySlug = CATEGORY_SLUGS.includes(data.category ?? "")
-    ? (data.category as string)
-    : "other";
-  return {
-    isCustomer: Boolean(data.is_customer),
-    categorySlug,
-    confidence: data.confidence ?? "medium",
-  };
-}
-
 interface CandidateRow {
   id: string;
   customer_email: string | null;
@@ -205,7 +148,7 @@ async function runOver(
   catIdBySlug: Map<string, string>,
   result: TriageResult,
 ): Promise<void> {
-  const client = cfg.anthropicApiKey ? makeAnthropic(cfg.anthropicApiKey) : null;
+  const hasAi = hasTriageProvider(cfg);
 
   await pooled(candidates, CLASSIFY_CONCURRENCY, async (row) => {
     const matched = matchSenderRule(row.customer_email, ruleRows);
@@ -224,7 +167,7 @@ async function runOver(
     if (matched === "allow") result.allowedByRule++;
 
     // Without an API key we can only apply deterministic rules.
-    if (!client) {
+    if (!hasAi) {
       result.skippedNoKey++;
       return;
     }
@@ -236,10 +179,12 @@ async function runOver(
         : "";
 
     try {
-      const out = await classify(client, {
+      const out = await classifySupportEmail(cfg, {
         fromEmail: row.customer_email,
         subject: row.subject,
         body: body.slice(0, BODY_LIMIT),
+        systemPrompt: SYSTEM_PROMPT,
+        categorySlugs: CATEGORY_SLUGS,
       });
       // Trust the allowlist for is_customer; use the model for the category.
       const isCustomer = matched === "allow" ? true : out.isCustomer;
@@ -292,11 +237,11 @@ export async function reclassifyThread(
     return { isCustomer: false };
   }
 
-  const client = cfg.anthropicApiKey ? makeAnthropic(cfg.anthropicApiKey) : null;
+  const hasAi = hasTriageProvider(cfg);
   let isCustomer: boolean = opts.forceCustomer ?? true;
   let categoryId: string | null = null;
 
-  if (client) {
+  if (hasAi) {
     const catRows = await db
       .select({ id: categories.id, slug: categories.slug })
       .from(categories);
@@ -307,10 +252,12 @@ export async function reclassifyThread(
         ? stripHtml(row.body_html)
         : "";
     try {
-      const out = await classify(client, {
+      const out = await classifySupportEmail(cfg, {
         fromEmail: row.customer_email,
         subject: row.subject,
         body: body.slice(0, BODY_LIMIT),
+        systemPrompt: SYSTEM_PROMPT,
+        categorySlugs: CATEGORY_SLUGS,
       });
       if (opts.forceCustomer === undefined) isCustomer = out.isCustomer;
       categoryId = isCustomer ? (catIdBySlug.get(out.categorySlug) ?? null) : null;

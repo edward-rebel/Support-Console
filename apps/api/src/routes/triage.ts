@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import {
+  hasTriageProvider,
   reclassifyThread,
   runTriage,
   type IntegrationsConfig,
@@ -25,7 +26,7 @@ class TriageRunner {
       running: this.running,
       lastResult: this.lastResult,
       lastError: this.lastError,
-      configured: Boolean(this.cfg.anthropicApiKey),
+      configured: hasTriageProvider(this.cfg),
     };
   }
 
@@ -55,10 +56,10 @@ export function registerTriageRoutes(app: FastifyInstance): void {
   const runner = new TriageRunner(db, env.integrations);
 
   app.post("/triage/run", { preHandler: requireAuth }, async (_req, reply) => {
-    if (!env.integrations.anthropicApiKey) {
+    if (!hasTriageProvider(env.integrations)) {
       return reply
         .code(400)
-        .send({ error: "ANTHROPIC_API_KEY is not configured." });
+        .send({ error: "No AI provider key is configured." });
     }
     const started = runner.start((msg, err) => {
       if (err) app.log.error({ err }, msg);
@@ -78,9 +79,14 @@ export function registerTriageRoutes(app: FastifyInstance): void {
     { preHandler: requireAuth },
     async (request, reply) => {
       const forceCustomer = request.body?.isCustomer;
-      const out = await reclassifyThread(db, env.integrations, request.params.id, {
-        forceCustomer,
-      });
+      const out = await reclassifyThread(
+        db,
+        env.integrations,
+        request.params.id,
+        {
+          forceCustomer,
+        },
+      );
       if (!out) return reply.code(404).send({ error: "Thread not found" });
       return reply.send(out);
     },

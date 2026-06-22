@@ -1,5 +1,6 @@
 import {
   GmailNotConnectedError,
+  hasTriageProvider,
   runSync,
   runTriage,
   type IntegrationsConfig,
@@ -42,7 +43,7 @@ export class SyncRunner {
         );
         // Triage newly-ingested threads (deterministic rules + cheap model).
         // Never sends email. Skips silently if no API key is configured.
-        if (this.cfg.anthropicApiKey) {
+        if (hasTriageProvider(this.cfg)) {
           const t = await runTriage(this.db, this.cfg);
           log(
             `Triage: ${t.markedCustomer} customer, ${t.markedNoise} noise (${t.classifiedByModel} via model) of ${t.considered}`,

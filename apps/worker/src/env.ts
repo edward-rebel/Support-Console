@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 import { resolve } from "node:path";
-import type { IntegrationsConfig } from "@ms/integrations";
+import { parseAiProviderOrder, type IntegrationsConfig } from "@ms/integrations";
 
 config({ path: resolve(process.cwd(), "../../.env") });
 config({ path: resolve(process.cwd(), ".env") });
@@ -40,6 +40,8 @@ export function loadEnv(): WorkerEnv {
       gmailAccount: opt("GMAIL_ACCOUNT", "contact@mollyandstitch.us"),
       backfillMonths: Number(opt("BACKFILL_MONTHS", "6")),
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+      openaiApiKey: process.env.OPENAI_API_KEY,
+      aiProviderOrder: parseAiProviderOrder(process.env.AI_PROVIDER_ORDER),
     },
   };
 }

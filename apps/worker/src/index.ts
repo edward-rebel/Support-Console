@@ -1,5 +1,10 @@
 import { createDb } from "@ms/db";
-import { GmailNotConnectedError, runSync, runTriage } from "@ms/integrations";
+import {
+  GmailNotConnectedError,
+  hasTriageProvider,
+  runSync,
+  runTriage,
+} from "@ms/integrations";
 import { loadEnv } from "./env";
 
 // Ingestion worker. Two modes:
@@ -16,7 +21,7 @@ async function runOnce(): Promise<void> {
     console.log(
       `[worker] sync (${result.mode}): ${result.messagesUpserted} new messages, ${result.threadsUpserted} threads touched`,
     );
-    if (env.integrations.anthropicApiKey) {
+    if (hasTriageProvider(env.integrations)) {
       const t = await runTriage(db, env.integrations);
       console.log(
         `[worker] triage: ${t.markedCustomer} customer, ${t.markedNoise} noise (${t.classifiedByModel} via model) of ${t.considered}`,
@@ -46,7 +51,7 @@ async function runLoop(): Promise<void> {
       console.log(
         `[worker] sync (${result.mode}): ${result.messagesUpserted} new messages, ${result.threadsUpserted} threads touched`,
       );
-      if (env.integrations.anthropicApiKey) {
+      if (hasTriageProvider(env.integrations)) {
         const t = await runTriage(db, env.integrations);
         console.log(
           `[worker] triage: ${t.markedCustomer} customer, ${t.markedNoise} noise (${t.classifiedByModel} via model) of ${t.considered}`,
@@ -85,8 +90,8 @@ async function triageOnce(): Promise<void> {
   const env = loadEnv();
   const { db, sql } = createDb(env.databaseUrl);
   try {
-    if (!env.integrations.anthropicApiKey) {
-      console.warn("[worker] ANTHROPIC_API_KEY not set — nothing to do.");
+    if (!hasTriageProvider(env.integrations)) {
+      console.warn("[worker] No AI provider key set — nothing to do.");
       return;
     }
     const idx = process.argv.indexOf("--triage");
