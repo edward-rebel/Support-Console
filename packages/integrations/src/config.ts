@@ -21,6 +21,17 @@ export interface IntegrationsConfig {
   // OpenAI key since embeddings currently run on OpenAI; kept separate so the
   // embeddings provider can be swapped without touching triage/drafting keys.
   embeddingsApiKey?: string;
+  // Read-only Shopify (Phase 4). Optional: lookups are a no-op until set. We
+  // mint short-lived Admin API tokens from apiKey+apiSecret on demand (client
+  // credentials grant) — no token is stored. READ SCOPES ONLY; never write.
+  shopify?: ShopifyConfig;
+}
+
+export interface ShopifyConfig {
+  storeDomain: string; // e.g. mollyandstitchus.myshopify.com
+  apiKey: string; // app Client ID
+  apiSecret: string; // app secret (shpss_…)
+  apiVersion: string; // e.g. 2026-01
 }
 
 export const AI_PROVIDERS = ["anthropic", "openai"] as const;

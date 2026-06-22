@@ -4,6 +4,7 @@ import type {
   KnowledgeEntryType,
   OperatorDTO,
   Paginated,
+  ShopifyContextDTO,
   SyncResultDTO,
   ThreadDetailDTO,
   ThreadSummaryDTO,
@@ -164,4 +165,14 @@ export const api = {
     }),
   deleteKnowledge: (id: string) =>
     request<{ ok: boolean }>(`/knowledge/${id}`, { method: "DELETE" }),
+
+  // ── Shopify (read-only) ───────────────────────────────────────────────────
+  shopifyStatus: () =>
+    request<{ configured: boolean; store: string | null }>("/shopify/status"),
+  shopifyContext: (params: { email?: string; order?: string }) => {
+    const qs = new URLSearchParams();
+    if (params.email) qs.set("email", params.email);
+    if (params.order) qs.set("order", params.order);
+    return request<ShopifyContextDTO>(`/shopify/context?${qs.toString()}`);
+  },
 };

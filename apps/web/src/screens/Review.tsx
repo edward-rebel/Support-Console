@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { MessageDTO, ThreadDetailDTO } from "@ms/shared";
+import type {
+  MessageDTO,
+  ShopifyContextDTO,
+  ShopifyOrderDTO,
+  ThreadDetailDTO,
+} from "@ms/shared";
 import { api } from "../api";
 import { useIsMobile } from "../useIsMobile";
 import { ChevronLeftIcon, BagIcon } from "../icons";
@@ -501,48 +506,300 @@ export function Review() {
           >
             Context
           </div>
-          <div
-            style={{
-              background: "var(--surface)",
-              border: "1px dashed var(--border)",
-              borderRadius: 12,
-              padding: "20px 16px",
-              marginBottom: 16,
-              textAlign: "center",
-            }}
-          >
-            <div
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 9,
-                background: "var(--surface-2)",
-                color: "var(--text-3)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                margin: "0 auto 10px",
-              }}
-            >
-              <BagIcon size={19} strokeWidth={1.8} />
-            </div>
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 600,
-                color: "var(--text-2)",
-                marginBottom: 4,
-              }}
-            >
-              Shopify context arrives in Phase 4
-            </div>
-            <div style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5 }}>
-              Matching order, line items, and tracking will appear here once the
-              read-only Shopify integration is wired up.
-            </div>
-          </div>
+          <ShopifyContextPanel email={thread.customerEmail} />
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Shopify order/customer context (read-only) ───────────────────────────────
+function statusColor(status: string | null): { bg: string; fg: string } {
+  const s = (status ?? "").toUpperCase();
+  if (["PAID", "FULFILLED"].includes(s))
+    return { bg: "var(--accent-soft-bg)", fg: "var(--accent-soft-fg)" };
+  if (["REFUNDED", "UNFULFILLED", "PARTIALLY_REFUNDED", "VOIDED"].includes(s))
+    return { bg: "var(--cat-exchange-bg)", fg: "var(--cat-exchange-fg)" };
+  return { bg: "var(--surface-2)", fg: "var(--text-3)" };
+}
+
+function OrderCard({ order }: { order: ShopifyOrderDTO }) {
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 11,
+        padding: "12px 13px",
+        marginBottom: 9,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+        <span style={{ fontWeight: 700, fontSize: 13.5, fontFamily: "var(--mono)" }}>
+          {order.name}
+        </span>
+        <span style={{ fontSize: 12, color: "var(--text-3)" }}>
+          {formatTime(order.createdAt)}
+        </span>
+        <span
+          style={{
+            marginLeft: "auto",
+            fontWeight: 600,
+            fontSize: 13,
+            color: "var(--text)",
+          }}
+        >
+          {order.total ? `${order.total} ${order.currency ?? ""}` : ""}
+        </span>
+      </div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+        {[order.financialStatus, order.fulfillmentStatus]
+          .filter((s): s is string => Boolean(s))
+          .map((s) => {
+            const c = statusColor(s);
+            return (
+              <span
+                key={s}
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                  letterSpacing: "0.02em",
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  background: c.bg,
+                  color: c.fg,
+                }}
+              >
+                {s.replace(/_/g, " ")}
+              </span>
+            );
+          })}
+      </div>
+      {order.lineItems.length > 0 && (
+        <div style={{ fontSize: 12.5, color: "var(--text-2)", lineHeight: 1.5 }}>
+          {order.lineItems.map((li, i) => (
+            <div key={i} style={{ display: "flex", gap: 6 }}>
+              <span style={{ color: "var(--text-3)" }}>{li.quantity}×</span>
+              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                {li.title}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {order.tracking.length > 0 && (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+          {order.tracking.map((t, i) => (
+            <div key={i} style={{ fontSize: 12, fontFamily: "var(--mono)" }}>
+              {t.company ? `${t.company}: ` : ""}
+              {t.url ? (
+                <a href={t.url} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
+                  {t.number ?? "track"}
+                </a>
+              ) : (
+                <span style={{ color: "var(--text-2)" }}>{t.number}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ShopifyContextPanel({ email }: { email: string | null }) {
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [ctx, setCtx] = useState<ShopifyContextDTO | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [orderQuery, setOrderQuery] = useState("");
+
+  const lookup = (params: { email?: string; order?: string }) => {
+    setLoading(true);
+    api
+      .shopifyContext(params)
+      .then(setCtx)
+      .catch(() => setCtx({ found: false, customer: null, orders: [] }))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    let active = true;
+    void api
+      .shopifyStatus()
+      .then((s) => {
+        if (!active) return;
+        setConfigured(s.configured);
+        if (s.configured && email) lookup({ email });
+      })
+      .catch(() => active && setConfigured(false));
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email]);
+
+  if (configured === false) {
+    return (
+      <div
+        style={{
+          background: "var(--surface)",
+          border: "1px dashed var(--border)",
+          borderRadius: 12,
+          padding: "18px 16px",
+          textAlign: "center",
+        }}
+      >
+        <div style={{ margin: "0 auto 8px", color: "var(--text-3)" }}>
+          <BagIcon size={18} strokeWidth={1.8} />
+        </div>
+        <div style={{ fontSize: 13, color: "var(--text-3)" }}>
+          Shopify isn't connected. Add the store credentials to see order context.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* manual order lookup */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        <input
+          value={orderQuery}
+          onChange={(e) => setOrderQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && orderQuery.trim()) lookup({ order: orderQuery.trim() });
+          }}
+          placeholder="Look up order # (e.g. 21142)"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            height: 32,
+            padding: "0 10px",
+            borderRadius: 8,
+            border: "1px solid var(--border)",
+            background: "var(--surface)",
+            color: "var(--text)",
+            fontSize: 12.5,
+            fontFamily: "var(--mono)",
+          }}
+        />
+        <button
+          onClick={() => orderQuery.trim() && lookup({ order: orderQuery.trim() })}
+          style={{
+            cursor: "pointer",
+            fontSize: 12.5,
+            fontWeight: 600,
+            padding: "0 12px",
+            borderRadius: 8,
+            border: "1px solid var(--border)",
+            background: "var(--surface)",
+            color: "var(--text-2)",
+          }}
+        >
+          Find
+        </button>
+      </div>
+
+      {email && (
+        <button
+          onClick={() => lookup({ email })}
+          style={{
+            cursor: "pointer",
+            fontSize: 12,
+            fontWeight: 600,
+            padding: "5px 10px",
+            borderRadius: 7,
+            border: "1px solid var(--border)",
+            background: "transparent",
+            color: "var(--text-3)",
+            marginBottom: 12,
+          }}
+        >
+          ↺ This customer ({email})
+        </button>
+      )}
+
+      {loading && (
+        <div style={{ fontSize: 13, color: "var(--text-3)", padding: "8px 0" }}>
+          Looking up Shopify…
+        </div>
+      )}
+
+      {!loading && ctx && !ctx.found && (
+        <div
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 11,
+            padding: "14px 14px",
+            fontSize: 13,
+            color: "var(--text-3)",
+          }}
+        >
+          No matching customer or order found.
+        </div>
+      )}
+
+      {!loading && ctx?.found && (
+        <>
+          {ctx.customer && (
+            <div
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 11,
+                padding: "13px 14px",
+                marginBottom: 12,
+              }}
+            >
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>
+                {ctx.customer.name ?? ctx.customer.email ?? "Customer"}
+              </div>
+              {ctx.customer.email && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--text-3)",
+                    fontFamily: "var(--mono)",
+                    marginBottom: 8,
+                  }}
+                >
+                  {ctx.customer.email}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 16, fontSize: 12.5 }}>
+                <span style={{ color: "var(--text-3)" }}>
+                  Orders:{" "}
+                  <b style={{ color: "var(--text)" }}>{ctx.customer.ordersCount ?? "—"}</b>
+                </span>
+                {ctx.customer.totalSpent && (
+                  <span style={{ color: "var(--text-3)" }}>
+                    Spent:{" "}
+                    <b style={{ color: "var(--text)" }}>
+                      {ctx.customer.totalSpent} {ctx.customer.currency ?? ""}
+                    </b>
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+          <div
+            style={{
+              fontFamily: "var(--mono)",
+              fontSize: 10.5,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "var(--text-3)",
+              marginBottom: 8,
+            }}
+          >
+            {ctx.orders.length === 1 ? "Order" : "Recent orders"}
+          </div>
+          {ctx.orders.map((o) => (
+            <OrderCard key={o.name} order={o} />
+          ))}
+        </>
+      )}
     </div>
   );
 }

@@ -100,6 +100,41 @@ export interface KnowledgeBuildResult {
   entriesEmbedded: number;
 }
 
+// ── Shopify read-only context (Phase 4) ──────────────────────────────────────
+
+export interface ShopifyTrackingDTO {
+  number: string | null;
+  url: string | null;
+  company: string | null;
+}
+
+export interface ShopifyOrderDTO {
+  name: string; // "#21142"
+  createdAt: string;
+  financialStatus: string | null; // PAID, REFUNDED, …
+  fulfillmentStatus: string | null; // FULFILLED, UNFULFILLED, …
+  total: string | null;
+  currency: string | null;
+  lineItems: { title: string; quantity: number }[];
+  tracking: ShopifyTrackingDTO[];
+}
+
+export interface ShopifyCustomerDTO {
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  ordersCount: number | null;
+  totalSpent: string | null;
+  currency: string | null;
+  createdAt: string;
+}
+
+export interface ShopifyContextDTO {
+  found: boolean;
+  customer: ShopifyCustomerDTO | null;
+  orders: ShopifyOrderDTO[];
+}
+
 export interface KnowledgeBuildStatus {
   running: boolean;
   stage: string | null;

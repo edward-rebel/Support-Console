@@ -7,3 +7,4 @@ export * from "./ai";
 export * from "./triage";
 export * from "./embeddings";
 export * from "./knowledge";
+export * from "./shopify";

@@ -1,6 +1,25 @@
 import { config } from "dotenv";
 import { resolve } from "node:path";
-import { parseAiProviderOrder, type IntegrationsConfig } from "@ms/integrations";
+import {
+  parseAiProviderOrder,
+  type IntegrationsConfig,
+  type ShopifyConfig,
+} from "@ms/integrations";
+
+// Build the optional read-only Shopify config from env. Returns undefined unless
+// all three credentials are present, so lookups stay a clean no-op until set.
+export function shopifyConfigFromEnv(): ShopifyConfig | undefined {
+  const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
+  const apiKey = process.env.SHOPIFY_API_KEY;
+  const apiSecret = process.env.SHOPIFY_API_SECRET;
+  if (!storeDomain || !apiKey || !apiSecret) return undefined;
+  return {
+    storeDomain,
+    apiKey,
+    apiSecret,
+    apiVersion: process.env.SHOPIFY_API_VERSION ?? "2026-01",
+  };
+}
 
 config({ path: resolve(process.cwd(), "../../.env") });
 config({ path: resolve(process.cwd(), ".env") });
@@ -54,6 +73,7 @@ export function loadEnv(): ApiEnv {
       openaiApiKey: process.env.OPENAI_API_KEY,
       aiProviderOrder: parseAiProviderOrder(process.env.AI_PROVIDER_ORDER),
       embeddingsApiKey: process.env.EMBEDDINGS_API_KEY,
+      shopify: shopifyConfigFromEnv(),
     },
   };
 }

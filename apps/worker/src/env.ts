@@ -43,6 +43,17 @@ export function loadEnv(): WorkerEnv {
       openaiApiKey: process.env.OPENAI_API_KEY,
       aiProviderOrder: parseAiProviderOrder(process.env.AI_PROVIDER_ORDER),
       embeddingsApiKey: process.env.EMBEDDINGS_API_KEY,
+      shopify:
+        process.env.SHOPIFY_STORE_DOMAIN &&
+        process.env.SHOPIFY_API_KEY &&
+        process.env.SHOPIFY_API_SECRET
+          ? {
+              storeDomain: process.env.SHOPIFY_STORE_DOMAIN,
+              apiKey: process.env.SHOPIFY_API_KEY,
+              apiSecret: process.env.SHOPIFY_API_SECRET,
+              apiVersion: process.env.SHOPIFY_API_VERSION ?? "2026-01",
+            }
+          : undefined,
     },
   };
 }
