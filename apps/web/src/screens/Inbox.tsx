@@ -71,6 +71,11 @@ export function Inbox() {
     const v = sessionStorage.getItem("inbox.category");
     return v && CATEGORIES.some((c) => c.slug === v) ? v : null;
   });
+  // Display-only sort of the rendered list by most-recent-message time. Always
+  // defaults to newest-first (not persisted).
+  const [sort, setSort] = useState<"newest" | "oldest">("newest");
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const sortRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     sessionStorage.setItem("inbox.tab", tab);
@@ -122,6 +127,7 @@ export function Inbox() {
           status: tab === "customer" ? STATUS_QUERY[statusFilter] : undefined,
           category: tab === "customer" ? (category ?? undefined) : undefined,
           page: 1,
+          sort,
         });
         if (!active) return;
         setThreads(res.items);
@@ -134,7 +140,7 @@ export function Inbox() {
     return () => {
       active = false;
     };
-  }, [tab, statusFilter, category, completedAt, reload]);
+  }, [tab, statusFilter, category, sort, completedAt, reload]);
 
   const loadMore = async () => {
     if (loadingMore) return;
@@ -146,6 +152,7 @@ export function Inbox() {
         status: tab === "customer" ? STATUS_QUERY[statusFilter] : undefined,
         category: tab === "customer" ? (category ?? undefined) : undefined,
         page: next,
+        sort,
       });
       setThreads((prev) => [...prev, ...res.items]);
       setTotal(res.total);
@@ -175,6 +182,25 @@ export function Inbox() {
       document.removeEventListener("keydown", onKey);
     };
   }, [catMenuOpen]);
+
+  // Close the sort dropdown on outside-click / Escape.
+  useEffect(() => {
+    if (!sortMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
+        setSortMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSortMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [sortMenuOpen]);
 
   const reclassify = async (id: string, isCustomer: boolean) => {
     const prev = threads;
@@ -381,6 +407,64 @@ export function Inbox() {
               </div>
             </div>
           )}
+
+          {/* Sort control — display-only ordering of the rendered list. */}
+          <div style={{ position: "relative", marginLeft: isMobile ? 0 : "auto" }} ref={sortRef}>
+            <button
+              onClick={() => setSortMenuOpen((o) => !o)}
+              title="Sort by date"
+              style={{
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 500,
+                padding: "6px 12px",
+                borderRadius: 8,
+                border: "1px solid var(--border)",
+                background: "var(--surface)",
+                color: "var(--text-2)",
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+              }}
+            >
+              <span style={{ color: "var(--text-3)" }}>Sort:</span>
+              {sort === "newest" ? "Newest first" : "Oldest first"}
+              <ChevronDownIcon size={12} strokeWidth={2.4} />
+            </button>
+            {sortMenuOpen && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 4px)",
+                  right: 0,
+                  zIndex: 20,
+                  minWidth: 150,
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 10,
+                  boxShadow: "0 12px 30px rgba(20,18,14,.18)",
+                  padding: 5,
+                }}
+              >
+                <CatItem
+                  label="Newest first"
+                  active={sort === "newest"}
+                  onClick={() => {
+                    setSort("newest");
+                    setSortMenuOpen(false);
+                  }}
+                />
+                <CatItem
+                  label="Oldest first"
+                  active={sort === "oldest"}
+                  onClick={() => {
+                    setSort("oldest");
+                    setSortMenuOpen(false);
+                  }}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

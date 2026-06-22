@@ -85,6 +85,7 @@ export function registerThreadRoutes(app: FastifyInstance): void {
       q?: string;
       page?: string;
       pageSize?: string;
+      sort?: string;
     };
   }>("/threads", { preHandler: requireAuth }, async (request, reply) => {
     const page = Math.max(1, Number(request.query.page ?? "1") || 1);
@@ -93,6 +94,8 @@ export function registerThreadRoutes(app: FastifyInstance): void {
       Math.max(1, Number(request.query.pageSize ?? "50") || 50),
     );
     const statusParam = request.query.status;
+    // Display-only ordering by most-recent-message time. Default newest-first.
+    const oldestFirst = request.query.sort === "oldest";
 
     const conds: SQL[] = [];
     // "open" is a virtual filter: genuinely unanswered requests (see
@@ -153,9 +156,15 @@ export function registerThreadRoutes(app: FastifyInstance): void {
       .from(threads)
       .leftJoin(categories, eq(threads.categoryId, categories.id))
       .where(where ?? sql`true`)
-      // Unique tiebreaker so offset-based "Load more" can't duplicate/skip rows
-      // when lastMessageAt is null or shared across threads.
-      .orderBy(sql`${threads.lastMessageAt} desc nulls last`, desc(threads.id))
+      // Order by most-recent-message time (display-only; default newest-first).
+      // The id tiebreaker keeps offset-based "Load more" from duplicating or
+      // skipping rows when lastMessageAt is null or shared across threads.
+      .orderBy(
+        oldestFirst
+          ? sql`${threads.lastMessageAt} asc nulls last`
+          : sql`${threads.lastMessageAt} desc nulls last`,
+        oldestFirst ? asc(threads.id) : desc(threads.id),
+      )
       .limit(pageSize)
       .offset((page - 1) * pageSize);
 

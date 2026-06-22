@@ -97,6 +97,7 @@ export const api = {
       category?: string;
       q?: string;
       page?: number;
+      sort?: "newest" | "oldest";
     } = {},
   ) => {
     const qs = new URLSearchParams();
@@ -105,6 +106,7 @@ export const api = {
     if (params.category) qs.set("category", params.category);
     if (params.q) qs.set("q", params.q);
     if (params.page) qs.set("page", String(params.page));
+    if (params.sort) qs.set("sort", params.sort);
     const query = qs.toString();
     return request<Paginated<ThreadSummaryDTO>>(
       `/threads${query ? `?${query}` : ""}`,
