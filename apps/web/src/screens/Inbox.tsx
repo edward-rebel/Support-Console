@@ -43,6 +43,9 @@ const STATUS_QUERY: Record<StatusFilter, string | undefined> = {
 // page load we still restore the last-used filter when navigating thread → back
 // (so browsing Sent and opening a thread returns you to Sent). Resets on reload.
 let statusFilterInitialized = false;
+// Same pattern for the sort order: defaults to newest-first on a fresh page
+// load, but is preserved when navigating thread → back within the session.
+let sortInitialized = false;
 
 export function Inbox() {
   const navigate = useNavigate();
@@ -71,9 +74,16 @@ export function Inbox() {
     const v = sessionStorage.getItem("inbox.category");
     return v && CATEGORIES.some((c) => c.slug === v) ? v : null;
   });
-  // Display-only sort of the rendered list by most-recent-message time. Always
-  // defaults to newest-first (not persisted).
-  const [sort, setSort] = useState<"newest" | "oldest">("newest");
+  // Display-only sort of the rendered list by most-recent-message time. Defaults
+  // to newest-first on a fresh page load; restored on thread → back navigation.
+  const [sort, setSort] = useState<"newest" | "oldest">(() => {
+    if (!sortInitialized) {
+      sortInitialized = true;
+      return "newest";
+    }
+    const v = sessionStorage.getItem("inbox.sort");
+    return v === "oldest" || v === "newest" ? v : "newest";
+  });
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement | null>(null);
 
@@ -87,6 +97,9 @@ export function Inbox() {
     if (category) sessionStorage.setItem("inbox.category", category);
     else sessionStorage.removeItem("inbox.category");
   }, [category]);
+  useEffect(() => {
+    sessionStorage.setItem("inbox.sort", sort);
+  }, [sort]);
   const [catMenuOpen, setCatMenuOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const catRef = useRef<HTMLDivElement | null>(null);
@@ -99,6 +112,8 @@ export function Inbox() {
   // Multi-select: ids of selected threads (customer tab) for bulk actions.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [closing, setClosing] = useState(false);
+  // Index of the last row toggled, used as the anchor for shift-click ranges.
+  const selectionAnchor = useRef<number | null>(null);
   const [counts, setCounts] = useState({
     customer: 0,
     noise: 0,
@@ -149,6 +164,7 @@ export function Inbox() {
   // we never act on threads the operator can no longer see.
   useEffect(() => {
     setSelected(new Set());
+    selectionAnchor.current = null;
   }, [tab, statusFilter, category, sort]);
 
   const loadMore = async () => {
@@ -224,11 +240,28 @@ export function Inbox() {
     }
   };
 
-  const toggleSelect = (id: string) => {
+  // Select a row by its position in the list. A plain click toggles that one
+  // row and becomes the anchor; a shift-click selects the whole range from the
+  // anchor to the clicked row (inclusive), like an email client.
+  const selectRow = (index: number, shiftKey: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (shiftKey && selectionAnchor.current !== null) {
+        const lo = Math.min(selectionAnchor.current, index);
+        const hi = Math.max(selectionAnchor.current, index);
+        for (let i = lo; i <= hi; i++) {
+          const id = threads[i]?.id;
+          if (id) next.add(id);
+        }
+        // Keep the anchor put so successive shift-clicks re-range from it.
+      } else {
+        const id = threads[index]?.id;
+        if (id) {
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+        }
+        selectionAnchor.current = index;
+      }
       return next;
     });
   };
@@ -621,13 +654,13 @@ export function Inbox() {
               boxShadow: "var(--shadow)",
             }}
           >
-            {threads.map((row) => (
+            {threads.map((row, i) => (
               <ThreadRow
                 key={row.id}
                 row={row}
                 isMobile={isMobile}
                 selected={selected.has(row.id)}
-                onToggleSelect={() => toggleSelect(row.id)}
+                onSelect={(shiftKey) => selectRow(i, shiftKey)}
                 onOpen={() => navigate(`/review/${row.id}`)}
               />
             ))}
@@ -775,13 +808,17 @@ function Chip({
   );
 }
 
-function RowCheckbox({ selected, onToggle }: { selected: boolean; onToggle: () => void }) {
+function RowCheckbox({ selected, onSelect }: { selected: boolean; onSelect: (shiftKey: boolean) => void }) {
   return (
     <input
       type="checkbox"
       checked={selected}
-      onChange={onToggle}
-      onClick={(e) => e.stopPropagation()}
+      readOnly
+      // Drive selection from the click so we can read shiftKey (range select).
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect(e.shiftKey);
+      }}
       aria-label="Select thread"
       style={{ flex: "none", width: 16, height: 16, cursor: "pointer", accentColor: "var(--accent)" }}
     />
@@ -792,13 +829,13 @@ function ThreadRow({
   row,
   isMobile,
   selected,
-  onToggleSelect,
+  onSelect,
   onOpen,
 }: {
   row: ThreadSummaryDTO;
   isMobile: boolean;
   selected: boolean;
-  onToggleSelect: () => void;
+  onSelect: (shiftKey: boolean) => void;
   onOpen: () => void;
 }) {
   const cat = categoryTokens(row.category?.slug);
@@ -821,7 +858,7 @@ function ThreadRow({
         }}
       >
         <div style={{ flex: "none", display: "flex", alignItems: "center", paddingTop: 13 }}>
-          <RowCheckbox selected={selected} onToggle={onToggleSelect} />
+          <RowCheckbox selected={selected} onSelect={onSelect} />
         </div>
         <div style={{ position: "relative", flex: "none" }}>
           <div
@@ -981,7 +1018,7 @@ function ThreadRow({
       }}
     >
       <div style={{ flex: "none", display: "flex", alignItems: "center" }}>
-        <RowCheckbox selected={selected} onToggle={onToggleSelect} />
+        <RowCheckbox selected={selected} onSelect={onSelect} />
       </div>
       <div style={{ flex: "none", width: 9, display: "flex", justifyContent: "center" }}>
         {row.unread && (
