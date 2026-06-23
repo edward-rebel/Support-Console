@@ -135,6 +135,12 @@ export const api = {
     request<{ ok: boolean; status: string }>(`/threads/${id}/close`, {
       method: "POST",
     }),
+  // Bulk-close several threads at once (inbox multi-select).
+  closeThreads: (ids: string[]) =>
+    request<{ ok: boolean; closed: number }>(`/threads/close`, {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    }),
   reopenThread: (id: string) =>
     request<{ ok: boolean; status: string }>(`/threads/${id}/reopen`, {
       method: "POST",

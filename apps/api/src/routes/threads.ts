@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, asc, desc, eq, ilike, isNull, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, or, type SQL, sql } from "drizzle-orm";
 import { categories, messages, threads } from "@ms/db";
 import type {
   AttachmentDTO,
@@ -337,6 +337,28 @@ export function registerThreadRoutes(app: FastifyInstance): void {
         .returning({ id: threads.id, status: threads.status });
       if (!updated[0]) return reply.code(404).send({ error: "Thread not found" });
       return reply.send({ ok: true, status: updated[0].status });
+    },
+  );
+
+  // Bulk-close multiple requests at once (inbox multi-select). Same effect as
+  // the single close, applied to every id. Does not send anything.
+  app.post<{ Body: { ids?: unknown } }>(
+    "/threads/close",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const raw = request.body?.ids;
+      const ids = Array.isArray(raw)
+        ? [...new Set(raw.filter((v): v is string => typeof v === "string" && v.length > 0))]
+        : [];
+      if (ids.length === 0) {
+        return reply.code(400).send({ error: "ids must be a non-empty array" });
+      }
+      const updated = await db
+        .update(threads)
+        .set({ status: "closed", updatedAt: new Date() })
+        .where(inArray(threads.id, ids))
+        .returning({ id: threads.id });
+      return reply.send({ ok: true, closed: updated.length });
     },
   );
 

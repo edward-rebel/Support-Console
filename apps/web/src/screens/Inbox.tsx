@@ -96,6 +96,9 @@ export function Inbox() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [reload, setReload] = useState(0);
+  // Multi-select: ids of selected threads (customer tab) for bulk actions.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [closing, setClosing] = useState(false);
   const [counts, setCounts] = useState({
     customer: 0,
     noise: 0,
@@ -141,6 +144,12 @@ export function Inbox() {
       active = false;
     };
   }, [tab, statusFilter, category, sort, completedAt, reload]);
+
+  // Drop the selection whenever the visible set changes (tab/filter/sort), so
+  // we never act on threads the operator can no longer see.
+  useEffect(() => {
+    setSelected(new Set());
+  }, [tab, statusFilter, category, sort]);
 
   const loadMore = async () => {
     if (loadingMore) return;
@@ -212,6 +221,34 @@ export function Inbox() {
     } catch {
       setThreads(prev); // restore on failure
       setActionError("Couldn't update that thread. Please try again.");
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const allLoadedSelected =
+    threads.length > 0 && threads.every((t) => selected.has(t.id));
+  const toggleSelectAll = () => {
+    setSelected(allLoadedSelected ? new Set() : new Set(threads.map((t) => t.id)));
+  };
+  const bulkClose = async () => {
+    if (selected.size === 0 || closing) return;
+    setClosing(true);
+    setActionError(null);
+    try {
+      await api.closeThreads([...selected]);
+      setSelected(new Set());
+      setReload((n) => n + 1); // refetch list + counts to reflect the closures
+    } catch {
+      setActionError("Couldn't close the selected threads. Please try again.");
+    } finally {
+      setClosing(false);
     }
   };
 
@@ -485,6 +522,76 @@ export function Inbox() {
         </div>
       )}
 
+      {/* bulk-action bar — appears when one or more threads are selected */}
+      {tab === "customer" && selected.size > 0 && (
+        <div style={{ flex: "none", padding: isMobile ? "8px 14px 0" : "8px 28px 0" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+              background: "var(--text)",
+              color: "#fff",
+              borderRadius: 10,
+              padding: isMobile ? "9px 12px" : "9px 14px",
+            }}
+          >
+            <span style={{ fontSize: 13.5, fontWeight: 600 }}>
+              {selected.size} selected
+            </span>
+            <button
+              onClick={toggleSelectAll}
+              style={{
+                cursor: "pointer",
+                fontSize: 12.5,
+                fontWeight: 500,
+                background: "transparent",
+                border: "none",
+                color: "rgba(255,255,255,0.8)",
+                padding: "4px 6px",
+              }}
+            >
+              {allLoadedSelected ? "Deselect all" : "Select all"}
+            </button>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+              <button
+                onClick={() => setSelected(new Set())}
+                style={{
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.3)",
+                  color: "#fff",
+                  padding: "7px 13px",
+                  borderRadius: 8,
+                }}
+              >
+                Clear
+              </button>
+              <button
+                onClick={() => void bulkClose()}
+                disabled={closing}
+                style={{
+                  cursor: closing ? "default" : "pointer",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  background: "#fff",
+                  border: "none",
+                  color: "var(--text)",
+                  padding: "7px 14px",
+                  borderRadius: 8,
+                  opacity: closing ? 0.6 : 1,
+                }}
+              >
+                {closing ? "Closing…" : `Mark as closed`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* list */}
       <div
         style={{
@@ -519,6 +626,8 @@ export function Inbox() {
                 key={row.id}
                 row={row}
                 isMobile={isMobile}
+                selected={selected.has(row.id)}
+                onToggleSelect={() => toggleSelect(row.id)}
                 onOpen={() => navigate(`/review/${row.id}`)}
               />
             ))}
@@ -666,13 +775,30 @@ function Chip({
   );
 }
 
+function RowCheckbox({ selected, onToggle }: { selected: boolean; onToggle: () => void }) {
+  return (
+    <input
+      type="checkbox"
+      checked={selected}
+      onChange={onToggle}
+      onClick={(e) => e.stopPropagation()}
+      aria-label="Select thread"
+      style={{ flex: "none", width: 16, height: 16, cursor: "pointer", accentColor: "var(--accent)" }}
+    />
+  );
+}
+
 function ThreadRow({
   row,
   isMobile,
+  selected,
+  onToggleSelect,
   onOpen,
 }: {
   row: ThreadSummaryDTO;
   isMobile: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
   onOpen: () => void;
 }) {
   const cat = categoryTokens(row.category?.slug);
@@ -691,8 +817,12 @@ function ThreadRow({
           padding: "13px 14px",
           borderBottom: "1px solid var(--border-2)",
           alignItems: "flex-start",
+          background: selected ? "var(--hover)" : "transparent",
         }}
       >
+        <div style={{ flex: "none", display: "flex", alignItems: "center", paddingTop: 13 }}>
+          <RowCheckbox selected={selected} onToggle={onToggleSelect} />
+        </div>
         <div style={{ position: "relative", flex: "none" }}>
           <div
             style={{
@@ -847,9 +977,12 @@ function ThreadRow({
         gap: 15,
         padding: "15px 18px",
         borderBottom: "1px solid var(--border-2)",
-        background: hover ? "var(--hover)" : "transparent",
+        background: selected ? "var(--hover)" : hover ? "var(--hover)" : "transparent",
       }}
     >
+      <div style={{ flex: "none", display: "flex", alignItems: "center" }}>
+        <RowCheckbox selected={selected} onToggle={onToggleSelect} />
+      </div>
       <div style={{ flex: "none", width: 9, display: "flex", justifyContent: "center" }}>
         {row.unread && (
           <span
